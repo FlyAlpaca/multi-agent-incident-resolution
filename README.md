@@ -35,6 +35,8 @@
 
 所有 Agent 都必须读取相同的事件输入、仓库规则和本次运行工件目录；不得把凭据、令牌或未经脱敏的敏感日志写入工件。
 
+协调者应按任务规模设置等待窗口，通过有界进度信号区分长时间运行与真实停滞；不得仅因安静或超过固定时限就中断 Agent。每个子 Agent 的终态结论（包括失败、阻塞和取消）都必须先由协调者在主界面回显，再进入下一阶段，并在最终 `处理总结` 中综合呈现。完整规则见 [`references/workflow.md`](references/workflow.md#subagent-liveness-and-result-visibility)。
+
 ## 全局 Skill 同步
 
 仓库目录是唯一维护源：

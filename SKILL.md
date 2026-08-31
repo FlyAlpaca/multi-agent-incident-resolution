@@ -76,7 +76,8 @@ Applicable instructions in this skill authorize subagent delegation in any mode 
 - Prefer a final reviewer that is independent of the implementation agent and does not modify source. Apply the bounded no-subagent fallback in [references/workflow.md](references/workflow.md) only when true independence is unavailable.
 - If the defect is small and already well evidenced, skip unnecessary parallel investigation. Do not spawn agents merely to satisfy a fixed count.
 - Use short or no history forks when selecting a phase-specific model; give the agent the incident input, applicable repository rules, task, and artifact paths.
-- Wait for requested agents and reconcile contradictions before moving to the next phase.
+- Match wait windows to the delegated work. When Agent state and messages are insufficient, use the bounded liveness checks in [references/workflow.md](references/workflow.md#subagent-liveness-and-result-visibility). Elapsed time or one quiet wait alone never justifies interrupting or replacing an Agent.
+- Wait for requested Agents and reconcile contradictions before moving to the next phase. After consuming each terminal result—including failure, cancellation, or blockage—relay that Agent's conclusion in a visible `commentary` update before the phase transition. An internal notification, artifact, or final summary alone is insufficient.
 
 Use these default Agent routes:
 
