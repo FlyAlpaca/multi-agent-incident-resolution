@@ -14,28 +14,52 @@ An explicit repository instruction wins. Do not infer a shared root from one too
 
 Place Multi-Agent Incident Resolution records in a collision-safe run directory under the selected root, normally `<artifact-root>/multi-agent-incident-resolution/<run-id>/`. Reuse that exact run directory across all phases and delegated Agents. Never overwrite or delete another run's artifacts. Record both the resolved root and run directory in the first artifact and every Agent handoff.
 
+The current run directory is disposable only under [Run artifact cleanup](#run-artifact-cleanup). Until cleanup begins, treat it as required workflow evidence.
+
 Before delegating, record the incident input and workspace root. Every phase must read the same incident input and applicable repository instructions. Later phases read prior artifact files rather than receiving a rewritten narrative.
 
 Apply the selected run-control mode from [confirmation.md](confirmation.md). In **单步确认** mode, stop before stages 1-5 and before every Agent switch or parallel Agent batch; present the required checkpoint and wait. A phase terminal marker does not authorize the next phase.
 
 ## Subagent liveness and result visibility
 
-Set wait expectations from the task rather than using one fixed timeout. Large log or dataset processing, broad repository search, dependency installation, builds, integration or end-to-end tests, and complex cross-module diagnosis need longer windows than focused lookups. While work is credibly active, prefer long mailbox waits over rapid polling.
+Choose a generous initial wait and relaxed health-check cadence from the task's dependencies and expected milestones. Broad searches, installations, builds, integration tests, and cross-module diagnosis need longer intervals than focused lookups. The coordinator's own polling follows the same schedule: never busy-poll or shorten an interval because the parent view is quiet. An interval is an observation schedule, not a deadline.
 
-When direct Agent state and messages do not expose useful progress for a long-running task, the coordinator may assign that Agent one disposable status path under `<RUN_ARTIFACT_DIR>/.agent-progress/<stable-agent-id>.status`. The Agent rewrites a few-line snapshot containing only the current operation, last completed milestone, optional processed/total counter, blocker state, and update timestamp. It updates on meaningful progress or, during one long operation, no more frequently than once per minute. Never put raw data, logs, command output, model reasoning, growing history, durable evidence, or the only copy of a conclusion in this file. Do not create it when ordinary state or messages are sufficient.
+Before dispatch, create the complete ledger row defined in [artifacts.md](artifacts.md), including one task-scoped path: `<RUN_ARTIFACT_DIR>/.agent-progress/<stable-agent-id>.activity`. The subagent is the only writer and appends one semantic record for each high-level step start, transition, and completion:
 
-When a subagent has not returned within the expected window, check health without destroying its work:
+```text
+seq=<positive-integer> timestamp=<RFC3339-UTC> state=<starting|working|blocked|finishing|completed|cancelled> step=<short-token> milestone=<start|transition|completion> blocker=<none|short-redacted-token>
+```
+
+Use this lifecycle coupling:
+
+| Lifecycle `state` | Event `milestone` | Valid use | `blocker` rule |
+|---|---|---|---|
+| `starting` | `start` | First record for a dispatch | `none` |
+| `working` | `start`, `transition`, or `completion` | Active work | `none` or a concise advisory token |
+| `blocked` | `transition` | Transient blocked state that may recover | A concise blocker is required |
+| `blocked` | `completion` | Terminal blocked result | A concise blocker is required |
+| `finishing` | `transition` | Optional pre-terminal finishing transition | `none` |
+| `completed` | `completion` | Terminal successful result | `none` |
+| `cancelled` | `completion` | Terminal cancellation result | `none` or a concise cancellation reason |
+
+`step` is a bounded free token, not an enum. `seq` starts at `1` and increases by one; the subagent writes the RFC3339 UTC `timestamp`. Reject unknown or duplicate fields, control characters, oversized or unterminated records, malformed timestamps, and sequence errors. Records contain no commands, raw output, reasoning traces, credentials, or low-level counters; detailed evidence belongs in result artifacts. Do not append after a terminal record.
+
+The dispatch ledger's record-count and byte allowances protect channel integrity; they are not work limits, timeouts, or stall evidence. Never truncate or rotate the file. Update allowances prospectively if authorized scope expands.
+
+For each check, retain the last validated byte offset and sequence and read only new complete lines. Parse as data—never shell evaluation. An advancing valid sequence is a freshness signal; mtime or timestamp age alone is not. A missing, replaced, shrunk, malformed, out-of-order, oversized, or post-terminal file is an invalid signal to record and investigate, not proof of a stall.
+
+When a subagent has not returned by the next observation point:
 
 1. inspect the Agent state through the available agent-status/listing mechanism;
-2. look for concrete progress already within scope, such as a new Agent message, a changed assigned progress snapshot, updated run artifact, relevant workspace diff, advancing test output, or an active delegated process;
-3. when state is ambiguous, send a non-interrupting request for a concise checkpoint: current operation, last completed milestone, blocker if any, and revised expectation;
-4. extend the wait when the Agent is running or any progress signal is present.
+2. inspect all assigned signals: messages, validated activity records, run artifacts or relevant diffs, and test/process activity;
+3. when state is ambiguous, send a non-interrupting request for a concise checkpoint: current high-level step, last completed milestone, blocker if any, and revised expectation;
+4. extend the wait whenever the Agent is running, answers usefully, or any assigned signal shows semantic progress.
 
-Compare a progress snapshot's timestamp and compact fields across health checks; do not repeatedly read unrelated or large files. Advancing content or modification time is a liveness signal and requires continued waiting. A reported `running` state, an active process, or a stale snapshot is only one signal and does not by itself prove either progress or a stall.
+Any semantic progress resets the no-progress window and requires continued waiting. Before considering interruption, wait through the credible next-milestone interval, repeat checks across all assigned signals, and obtain an ineffective non-interrupting checkpoint. There is no universal timeout.
 
-Do not interrupt, replace, or respawn an Agent merely because it is quiet, exceeded an arbitrary timeout, or handled more data than expected. Interruption is permitted only for explicit user cancellation, a safety or authority breach, a superseding task that invalidates the work, or a demonstrated stall: repeated health checks over a reasonable task-specific interval show no progress, a checkpoint request produces no useful response, and continued waiting has no credible path to completion. Record the evidence and reason first. Preserve and inspect useful partial results before considering bounded replacement work. After preserving the terminal or interrupted result, remove only that Agent's exact assigned progress file; never recursively clear `.agent-progress`, delete another Agent's file, or delete durable run artifacts.
+Interrupt only for user cancellation, a safety or authority breach, a superseding task, or a demonstrated stall: repeated task-specific checks find no progress across all signals, the checkpoint is ineffective, and no credible completion path remains. Record the evidence first. The activity file is never the sole verdict. Preserve useful partial results before bounded replacement work. After preserving and relaying a terminal or interrupted result, remove only that dispatch's activity file—never another file, the `.agent-progress` directory recursively, or durable run artifacts.
 
-Every terminal subagent result must be relayed by the coordinator to the user-facing main conversation after it is consumed and before the coordinator transitions phases or exits. Use a visible `commentary` update labeled with the Agent role or stable identifier and state: terminal outcome, conclusion, strongest evidence, limitations or blockers, and effect on the next step. In **自动全流程** mode, the same update must also state that subagent's exact model and reasoning effort, as required by [confirmation.md](confirmation.md#automatic-full-flow-mode). A parallel batch may use one compact update, but it must distinguish every Agent and must not hide failures behind an aggregate success. Redact secrets and summarize excessive raw output. Mailbox/status notifications, artifacts, and the final `处理总结` do not substitute for this immediate relay. The workflow-exit response must also synthesize the material subagent conclusions; it need not repeat raw output verbatim.
+After consuming a terminal result and before changing phase or exiting, relay it in visible `commentary`: canonical label and state, conclusion, strongest evidence, limitations or blockers, and effect on the next step. Apply [the routing-disclosure contract](confirmation.md#subagent-routing-disclosure). A parallel update may be compact but must distinguish every subagent and expose failures. Internal notifications, artifacts, and the final summary do not replace this relay.
 
 ## 1. Investigation
 
@@ -166,11 +190,20 @@ Use these visible labels under the section. Write `无` only when absence is con
 - `修改状态` — exactly `已修改`, `部分修改`, or `未修改`, referring only to changes made by this workflow run; list the principal files or components changed, or state why no modification was made without counting pre-existing user changes;
 - `处理方式` — diagnosis or repair actions taken, repair type and meaningful behavioral difference; write `未实施修复` when applicable;
 - `验证结果` — focused and regression checks, their outcomes, and the independent-review decision or limitation;
-- `子 Agent 结论` — when delegation occurred, identify every dispatched Agent and synthesize its terminal outcome, conclusion, material limitation, and effect on the workflow; otherwise write `不适用`;
+- `子 Agent 结论` — when delegation occurred, identify every dispatched Agent and synthesize its terminal outcome, conclusion, material limitation, and effect on the workflow; in either run-control mode, use every Agent's retained canonical disclosure label and apply the same pre-send gate; otherwise write `不适用`;
 - `遗留事项` — unresolved, deferred, blocked, partially verified issues, remaining risks, and the concrete next action;
 - `交付状态` — whether required documentation was synchronized and whether a commit was created when either is relevant.
+- `中间产物清理` — for a normally completed run in either run-control mode, state `已清理` and the exact removed `RUN_ARTIFACT_DIR`, or `失败` with the retained path and reason; for all other exits, state `已保留` and why, or `不适用` when no run artifacts were created.
 
 For multiple selected issues, group details by issue ID when their outcomes differ; do not hide a failed issue behind an aggregate success statement. Do not claim success from an attempted edit alone: clearly distinguish fixed, partially fixed, unverified, and unresolved issues. Synthesize the final artifacts instead of copying their full contents or repeating earlier progress updates.
+
+### Run artifact cleanup
+
+Cleanup is part of a normal `RUN_CONTROL: AUTO` or `RUN_CONTROL: STEP` completion, after every required result has been consumed and the complete `处理总结` has been synthesized in memory, but before sending the workflow-exit response. It does not run for partial, failed, blocked, stopped, cancelled, or paused exits. If no run artifacts were created, report cleanup as not applicable.
+
+Invoke `scripts/cleanup-run-artifacts.sh` with the explicit recorded `ARTIFACT_ROOT` and `RUN_ARTIFACT_DIR`. The script must validate that both paths are absolute existing directories, neither target is a symbolic link or broad root, and the run directory is exactly one direct child of `<ARTIFACT_ROOT>/multi-agent-incident-resolution/`. Never replace these arguments with a glob, unresolved environment variable, current directory, workspace root, shared namespace directory, or inferred path. The script removes the current run directory and prunes the skill namespace directory only when it becomes empty; it never removes `ARTIFACT_ROOT`.
+
+After cleanup, perform a read-only existence check of the exact run directory. Report `中间产物清理: 已清理（<RUN_ARTIFACT_DIR>）` only when it is absent. If validation or deletion fails, do not broaden the target or retry with a less restrictive command; report `中间产物清理: 失败` with the retained exact path and concise reason. Cleanup failure changes the completed run's exit state to partial because the user-requested lifecycle is incomplete, while preserving all repair and verification conclusions already synthesized.
 
 ## Git checkpoint policy
 

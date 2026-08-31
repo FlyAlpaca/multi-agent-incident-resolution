@@ -2,33 +2,20 @@
 
 This contract controls user interaction for one incident run. It does not replace or suppress Codex runtime permission, sandbox, or tool approval prompts.
 
-## Mandatory numbered option output
+## Numbered choice contract
 
-Every prompt that offers two or more actionable choices must:
+For every prompt with two or more actions:
 
-1. render every choice with a consecutive numeric label beginning with `1`;
-2. give each number exactly one stable meaning for that prompt;
-3. include the number in any structured button or option label when the client supports interactive choices;
-4. keep the same numbering when re-presenting an unresolved prompt;
-5. distinguish menu numbers from stable issue IDs such as `ISSUE-003`.
+1. number skill-supplied choices consecutively from `1`, including structured option labels;
+2. keep each number's meaning stable when re-presenting an unresolved prompt;
+3. distinguish menu numbers from stable issue IDs such as `ISSUE-003`;
+4. show exactly one actionable choice set for the pending decision.
 
-Do not output a bare set such as “确认 / 取消 / 暂停” or prose labels without numbers. Do not hide additional choices in surrounding paragraphs.
+Deliver the complete decision through one surface. Use `request_user_input` when callable and the menu fits its two-or-three-choice limit; otherwise put one numbered list in the final response and end the turn. Never place a pending decision in `commentary`, duplicate it across surfaces, or follow it with an empty final response. Do not assume an IDE or try to change client mode.
 
-Deliver each decision through exactly one surface:
+When the client adds **Other**, do not add a duplicate custom option; this client-owned label is the only allowed unnumbered action. Text fallback menus may include the defined **其他 / 自定义** choice.
 
-- a checkpoint awaiting user choice is a control prompt, not a progress update; never put its decision context or options in `commentary`;
-- when `request_user_input` is callable and the pending menu can be represented as one prompt with two or three explicit choices, put the concise checkpoint context in that prompt, use it, and put the numeric prefix directly in every supplied option label; do not repeat the context or options in commentary, assistant prose, or a second prompt;
-- when `request_user_input` is unavailable, put the complete checkpoint context and the same decision in one non-collapsed final response as a textual ordered list, then end the turn without running more tools; do not also create structured options;
-- never emit an empty final response after placing a pending checkpoint or its choices elsewhere;
-- when a client automatically adds a free-form **Other** choice, do not supply a duplicate **其他 / 自定义** option in that structured prompt. Treat the client-owned result as custom input. The unnumbered client-owned label is the only exception to numeric option output because the skill cannot control its rendering; every skill-supplied option remains numbered.
-
-Do not attempt to switch the client into Plan mode or assume a specific IDE. Capability detection is per prompt: interactive-first when the callable tool can represent the menu without losing an action, numbered-text fallback otherwise.
-
-Render exactly one actionable choice set per checkpoint. Never place the repair-set menu, Agent-upgrade menu, and generic stage-action menu together with overlapping numbers. Use the composition rules below to select the one menu that governs the pending decision.
-
-User input is flexible. Accept a displayed number, the option label, a structured-option result, or an unambiguous natural-language equivalent. For multi-select prompts, accept numbers, issue IDs, labels, or a clear combination. Normalize the response to the displayed option number internally. If input is ambiguous, out of range, or conflicts with itself, take no action and re-display the same numbered choice set through the same single surface with a concise clarification request.
-
-If a custom choice requires free-form detail, the user may provide the detail through the client-owned **Other** input, together with a textual custom choice, or in the following reply. Do not require a numeric reply.
+Accept a number, exact label, structured result, or unambiguous natural-language equivalent; multi-select prompts may also use issue IDs. Normalize the choice internally. If input is ambiguous, invalid, or contradictory, take no action and re-display the same menu through the same surface. Custom detail may arrive through **Other** or the following reply and need not be numeric.
 
 ## Entry confirmation
 
@@ -36,8 +23,8 @@ This section is the only source of the entry menu for an incident. Render it exa
 
 Before taking workflow actions, present these three choices in simplified Chinese:
 
-1. **自动全流程** — execute the selected `debug`, `diagnose`, `repair`, or `review` scope continuously until completion, a stop condition, an Agent upgrade above the role default, or a high-impact approval boundary.
-2. **单步确认** — execute one phase or one approved Agent batch at a time and wait for confirmation before the next transition.
+1. **自动全流程** — execute the selected `debug`, `diagnose`, `repair`, or `review` scope continuously until completion, a stop condition, an Agent upgrade above the role default, or a high-impact approval boundary; after normal completion, automatically remove only this run's intermediate-artifact directory.
+2. **单步确认** — execute one phase or one approved Agent batch at a time and wait for confirmation before the next transition; normal completion also automatically removes only this run's intermediate-artifact directory.
 3. **不进入流程** — do not start this workflow. If the user also requested a narrower action that does not rely on the workflow, perform only that action within its existing authorization; otherwise stop.
 
 If the user already says “自动全流程”, “单步确认”, “不进入流程”, or an unambiguous equivalent in the activating request, adopt it without asking again. An explicit `$multi-agent-incident-resolution` invocation selects the skill but does not by itself select run control.
@@ -58,11 +45,34 @@ Automatic mode is not blanket authorization for deployment, destructive operatio
 
 When diagnosis finds repair choices, automatic mode pauses and presents the numbered repair menu defined in [multi-issue.md](multi-issue.md) unless the user preselected a repair set in the activating request. Repair selection is a product/scope decision, not a routine stage prompt.
 
-Automatic mode also pauses before every Agent upgrade above the role defaults defined in `SKILL.md`. A general automatic-mode selection is not approval for a stronger model, higher effort, or higher-compute mode.
+Both run-control modes pause before every Agent upgrade above the role defaults defined in `SKILL.md`. A general automatic-mode or single-step selection is not approval for a stronger model, higher effort, or higher-compute mode.
 
-Automatic execution removes routine phase confirmations, but it does not remove subagent routing disclosure. Before dispatching any subagent, emit a visible `commentary` update using `下一步执行：<角色或稳定标识>；模型：<精确模型>；推理强度：<精确强度>；任务：<有界职责>`. For a parallel batch, give one concise sentence per subagent with the same fields. Do not dispatch until every planned subagent has all four fields.
+Normal completion of either mode includes [run artifact cleanup](workflow.md#run-artifact-cleanup). Entry selection authorizes only deletion of the validated current run directory after scope completion—not shared roots, other runs, source/runtime data, user logs, or artifacts from a non-normal exit.
 
-After dispatch, every user-facing reference to a specific planned, running, substituted, failed, cancelled, blocked, or completed subagent must include that subagent's role or stable identifier, exact model, and reasoning effort in the same update. This applies to progress reports and terminal-result relays as well as dispatch notices. A substitution must disclose the replacement route before execution; an upgrade still requires the separate confirmation below. Generic descriptions of the workflow or role catalog that do not refer to an actual subagent execution are exempt.
+## Subagent routing disclosure
+
+This contract applies equally to both run-control modes. Automatic execution removes routine phase confirmations, not routing transparency.
+
+As soon as a route is selected, create and retain one canonical label with the dispatch record:
+
+`<角色或稳定标识>（模型：<精确模型>；推理强度：<精确强度>）`
+
+Before dispatching, emit a visible `commentary` update using `下一步执行：<规范披露标签>；任务：<有界职责>`. For a parallel batch, give one concise sentence per subagent with its own canonical label and bounded task. Do not dispatch until every planned subagent has a canonical label and bounded task.
+
+Record the complete dispatch fields required by [artifacts.md](artifacts.md). They include the task plan, expected artifact, activity-channel limits, and task-specific observation schedule; channel limits are not work limits or timeouts.
+
+After dispatch, paste the same canonical label verbatim into every user-facing reference to that specific planned, running, substituted, failed, cancelled, blocked, or completed subagent. Never shorten it to bare wording such as `验证 Agent` or `独立 Reviewer`, even when the route appeared in an earlier update. This applies to progress reports, terminal-result relays, descriptions of a planned next Agent, and the final summary. A substitution creates a new label that must be disclosed before execution; an upgrade still requires the separate confirmation below. Generic descriptions of a workflow stage or role catalog that do not refer to an actual subagent execution are exempt.
+
+Before sending a user-facing message:
+
+1. identify every phrase that refers to an actual past, current, or planned subagent, including a next Agent mentioned only in the final sentence;
+2. match each phrase to exactly one retained canonical label and effective route;
+3. if any actual subagent reference lacks its full label, or its model/effort differs from the effective dispatch route, do not send the draft—rewrite it first;
+4. when several Agents appear in one update, check and label each one separately; an aggregate statement never satisfies another Agent's disclosure.
+
+Invalid: `验证 Agent 正在运行；之后由独立 Reviewer 复核。`
+
+Valid: `验证 Agent（模型：gpt-5.6-luna；推理强度：max）正在运行；之后由独立复核 Agent（模型：gpt-5.6-sol；推理强度：medium）复核。`
 
 ## Agent upgrade confirmation
 
@@ -90,13 +100,13 @@ Before each phase transition, Agent switch, or parallel Agent batch, show one co
 - intended files, commands, or mutation scope when known;
 - current risks, unresolved assumptions, and relevant stop conditions.
 
-Immediately before the single numbered choice set, describe the next executor in concise prose rather than a table:
+Immediately before the single numbered choice set, describe the next executor in concise prose rather than a table. Apply the shared routing-disclosure contract:
 
-- when the main execution owner continues, write `下一步执行：当前 Agent，将负责……`. This is sufficient; do not display, guess, or require the current session's hidden model or reasoning effort;
-- when delegating one subagent, write `下一步执行：<角色>；模型：<精确模型>；推理强度：<精确强度>；任务：<有界职责>`;
-- for a parallel read-only batch, give one short sentence per subagent using the same fields.
+- when the coordinator itself continues without dispatching a subagent, write `下一步执行：当前 Agent，将负责……`; this coordinator identifier is not a subagent route label and does not require hidden session model metadata;
+- when delegating one subagent, write `下一步执行：<规范披露标签>；任务：<有界职责>`;
+- for a parallel read-only batch, give one short sentence per subagent using the same canonical label and bounded task.
 
-Do not show the confirmation choices or start the phase until every planned subagent has a role, exact model, reasoning effort, and bounded task. If execution changes between the current Agent and a subagent, or any displayed subagent, model, effort, or task changes before execution, present a revised checkpoint and wait again. A model above the role default still requires the separate Agent-upgrade menu; the routing disclosure describes the plan but never authorizes an upgrade.
+Do not show the confirmation choices or start the phase until every planned subagent has a canonical label, exact model, reasoning effort, and bounded task. If execution changes between the current Agent and a subagent, or any displayed subagent, model, effort, or task changes before execution, create or revise the affected canonical label, present a revised checkpoint, and wait again. A model above the role default still requires the separate Agent-upgrade menu; the routing disclosure describes the plan but never authorizes an upgrade.
 
 Before implementation, include the issue table and use the single-step combined repair menu from [multi-issue.md](multi-issue.md) when repair selection is pending. That menu replaces the generic stage-action menu and confirms both the selected issue IDs and entry into implementation. For a structural, multi-issue, dependency-ordered, contract-changing, migration, concurrency, lifecycle, state-machine, or otherwise high-blast-radius repair, expand this checkpoint with the ordered implementation sequence, dependencies, affected contracts or data, rollback approach, per-issue checks, and combined regression checks. Do not create a separate planning phase or `plan.md` merely to repeat diagnosis and implementation information.
 
