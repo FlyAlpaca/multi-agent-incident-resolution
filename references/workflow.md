@@ -18,6 +18,25 @@ Before delegating, record the incident input and workspace root. Every phase mus
 
 Apply the selected run-control mode from [confirmation.md](confirmation.md). In **单步确认** mode, stop before stages 1-5 and before every Agent switch or parallel Agent batch; present the required checkpoint and wait. A phase terminal marker does not authorize the next phase.
 
+## Subagent liveness and result visibility
+
+Set wait expectations from the task rather than using one fixed timeout. Large log or dataset processing, broad repository search, dependency installation, builds, integration or end-to-end tests, and complex cross-module diagnosis need longer windows than focused lookups. While work is credibly active, prefer long mailbox waits over rapid polling.
+
+When direct Agent state and messages do not expose useful progress for a long-running task, the coordinator may assign that Agent one disposable status path under `<RUN_ARTIFACT_DIR>/.agent-progress/<stable-agent-id>.status`. The Agent rewrites a few-line snapshot containing only the current operation, last completed milestone, optional processed/total counter, blocker state, and update timestamp. It updates on meaningful progress or, during one long operation, no more frequently than once per minute. Never put raw data, logs, command output, model reasoning, growing history, durable evidence, or the only copy of a conclusion in this file. Do not create it when ordinary state or messages are sufficient.
+
+When a subagent has not returned within the expected window, check health without destroying its work:
+
+1. inspect the Agent state through the available agent-status/listing mechanism;
+2. look for concrete progress already within scope, such as a new Agent message, a changed assigned progress snapshot, updated run artifact, relevant workspace diff, advancing test output, or an active delegated process;
+3. when state is ambiguous, send a non-interrupting request for a concise checkpoint: current operation, last completed milestone, blocker if any, and revised expectation;
+4. extend the wait when the Agent is running or any progress signal is present.
+
+Compare a progress snapshot's timestamp and compact fields across health checks; do not repeatedly read unrelated or large files. Advancing content or modification time is a liveness signal and requires continued waiting. A reported `running` state, an active process, or a stale snapshot is only one signal and does not by itself prove either progress or a stall.
+
+Do not interrupt, replace, or respawn an Agent merely because it is quiet, exceeded an arbitrary timeout, or handled more data than expected. Interruption is permitted only for explicit user cancellation, a safety or authority breach, a superseding task that invalidates the work, or a demonstrated stall: repeated health checks over a reasonable task-specific interval show no progress, a checkpoint request produces no useful response, and continued waiting has no credible path to completion. Record the evidence and reason first. Preserve and inspect useful partial results before considering bounded replacement work. After preserving the terminal or interrupted result, remove only that Agent's exact assigned progress file; never recursively clear `.agent-progress`, delete another Agent's file, or delete durable run artifacts.
+
+Every terminal subagent result must be relayed by the coordinator to the user-facing main conversation after it is consumed and before the coordinator transitions phases or exits. Use a visible `commentary` update labeled with the Agent role or stable identifier and state: terminal outcome, conclusion, strongest evidence, limitations or blockers, and effect on the next step. A parallel batch may use one compact update, but it must distinguish every Agent and must not hide failures behind an aggregate success. Redact secrets and summarize excessive raw output. Mailbox/status notifications, artifacts, and the final `处理总结` do not substitute for this immediate relay. The workflow-exit response must also synthesize the material subagent conclusions; it need not repeat raw output verbatim.
+
 ## 1. Investigation
 
 Goal: establish reproducible facts without editing source.
@@ -147,6 +166,7 @@ Use these visible labels under the section. Write `无` only when absence is con
 - `修改状态` — exactly `已修改`, `部分修改`, or `未修改`, referring only to changes made by this workflow run; list the principal files or components changed, or state why no modification was made without counting pre-existing user changes;
 - `处理方式` — diagnosis or repair actions taken, repair type and meaningful behavioral difference; write `未实施修复` when applicable;
 - `验证结果` — focused and regression checks, their outcomes, and the independent-review decision or limitation;
+- `子 Agent 结论` — when delegation occurred, identify every dispatched Agent and synthesize its terminal outcome, conclusion, material limitation, and effect on the workflow; otherwise write `不适用`;
 - `遗留事项` — unresolved, deferred, blocked, partially verified issues, remaining risks, and the concrete next action;
 - `交付状态` — whether required documentation was synchronized and whether a commit was created when either is relevant.
 
