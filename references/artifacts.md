@@ -15,10 +15,10 @@ Each record contains:
 - identity and routing: phase, role, default route, proposed and effective model/effort, canonical disclosure label, and reason;
 - assignment: bounded task, high-level steps/milestones, expected result/artifact, and exact activity path;
 - channel guards: maximum record count, complete-record bytes, and total file-growth bytes;
-- observation plan: initial wait, health-check cadence, and credible next milestone;
+- observation plan: initial wait, health-check cadence, no-progress window (maximum 1800 seconds), and credible next milestone;
 - decision and outcome: displayed upgrade choice/index when applicable, dispatch status, result status, terminal conclusion or blocker, and `USER_RELAY_STATUS: PENDING | RELAYED | NOT_DISPATCHED`.
 
-Use numeric units for counts, bytes, and durations. Channel guards are not work limits or timeouts; update them prospectively after authorized scope expansion. Preserve old rows without inventing historical values. Reuse the stored disclosure label verbatim. A prior model preference is context, not upgrade approval. Count every above-default proposal in `AGENT_UPGRADE_COUNT`; use `MIXED` when their outcomes differ. Set `RELAYED` only after the terminal result is visible in the main conversation.
+Use numeric units for counts, bytes, and durations. The no-progress window must not exceed 1800 seconds (30 minutes) per window; reaching that limit triggers a full health check and checkpoint, not automatic cancellation. Channel guards are not work limits or timeouts; update them prospectively after authorized scope expansion. Preserve old rows without inventing historical values. Reuse the stored disclosure label verbatim. A prior model preference is context, not upgrade approval. Count every above-default proposal in `AGENT_UPGRADE_COUNT`; use `MIXED` when their outcomes differ. Set `RELAYED` only after the terminal result is visible in the main conversation.
 
 Reserve one append-only `<RUN_ARTIFACT_DIR>/.agent-progress/<stable-agent-id>.activity` path per active dispatch. [The workflow protocol](workflow.md#subagent-liveness-and-result-visibility) is authoritative for its schema, validation, reading, lifecycle, and cleanup. The ledger records the path and guards; it does not duplicate the protocol.
 

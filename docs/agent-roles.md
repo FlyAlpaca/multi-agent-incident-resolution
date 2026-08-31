@@ -26,7 +26,7 @@
 
 ## 运行与回显
 
-每个派发任务使用唯一的追加式 activity 文件。协调者结合活动记录、Agent 状态与消息、结果工件、工作区差异和进程/测试信号判断健康；任何单一信号、固定超时或安静状态都不能单独证明停滞。完整 schema、读取规则、中断条件和精确清理要求见 [references/workflow.md](../references/workflow.md#subagent-liveness-and-result-visibility)。
+每个派发任务使用唯一的追加式 activity 文件。无进展窗口单次最多 30 分钟（1800 秒）；到达上限后必须完成多信号检查和非中断 checkpoint。协调者结合活动记录、Agent 状态与消息、结果工件、工作区差异和进程/测试信号判断健康；任何单一信号、固定超时或安静状态都不能单独证明停滞。完整 schema、读取规则、中断条件和精确清理要求见 [references/workflow.md](../references/workflow.md#subagent-liveness-and-result-visibility)。
 
 协调者消费终态结果后，必须先在可见 `commentary` 中回显结论、关键证据、限制或阻塞及其对下一步的影响，再切换阶段。并行批次可合并回显，但必须区分每个子 Agent 且不得掩盖失败。
 
