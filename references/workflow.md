@@ -22,7 +22,7 @@ Apply the selected run-control mode from [confirmation.md](confirmation.md). In 
 
 ## Subagent liveness and result visibility
 
-Choose a generous initial wait and relaxed health-check cadence from the task's dependencies and expected milestones. Broad searches, installations, builds, integration tests, and cross-module diagnosis need longer intervals than focused lookups. The coordinator's own polling follows the same schedule: never busy-poll or shorten an interval because the parent view is quiet. An interval is an observation schedule, not a deadline.
+Choose a generous initial wait and relaxed health-check cadence from the task's dependencies and expected milestones. Broad searches, installations, builds, integration tests, and cross-module diagnosis need longer intervals than focused lookups. The coordinator's own polling follows the same schedule: never busy-poll or shorten an interval because the parent view is quiet. An interval is an observation schedule, not a deadline. A single no-progress window may be extended up to 1800 seconds (30 minutes); this is the maximum observation window before a full health check and checkpoint, not an automatic cancellation deadline.
 
 Before dispatch, create the complete ledger row defined in [artifacts.md](artifacts.md), including one task-scoped path: `<RUN_ARTIFACT_DIR>/.agent-progress/<stable-agent-id>.activity`. The subagent is the only writer and appends one semantic record for each high-level step start, transition, and completion:
 
@@ -55,7 +55,7 @@ When a subagent has not returned by the next observation point:
 3. when state is ambiguous, send a non-interrupting request for a concise checkpoint: current high-level step, last completed milestone, blocker if any, and revised expectation;
 4. extend the wait whenever the Agent is running, answers usefully, or any assigned signal shows semantic progress.
 
-Any semantic progress resets the no-progress window and requires continued waiting. Before considering interruption, wait through the credible next-milestone interval, repeat checks across all assigned signals, and obtain an ineffective non-interrupting checkpoint. There is no universal timeout.
+Any semantic progress resets the no-progress window and requires continued waiting. When the no-progress window reaches 1800 seconds (30 minutes), perform a full check across all assigned signals and obtain a non-interrupting checkpoint before considering interruption. If the Agent is still running or has a credible completion path, continue waiting with a new task-specific window; the 30-minute limit applies to each no-progress window. Interrupt only when the repeated checks remain negative, the checkpoint is ineffective, and no credible completion path remains.
 
 Interrupt only for user cancellation, a safety or authority breach, a superseding task, or a demonstrated stall: repeated task-specific checks find no progress across all signals, the checkpoint is ineffective, and no credible completion path remains. Record the evidence first. The activity file is never the sole verdict. Preserve useful partial results before bounded replacement work. After preserving and relaying a terminal or interrupted result, remove only that dispatch's activity file—never another file, the `.agent-progress` directory recursively, or durable run artifacts.
 

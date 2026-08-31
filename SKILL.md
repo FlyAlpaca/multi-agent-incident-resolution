@@ -62,7 +62,7 @@ This skill authorizes subagent delegation in any mode when a concrete, independe
 - Use only roles that add value; do not delegate ceremonially.
 - Parallelize independent read-only work, but keep implementation under one writer and never let a reviewer fix its own findings.
 - Give each subagent the incident input, repository rules, workspace snapshot, run directory, bounded task, and explicit authority boundary. Prefer short or no history forks for phase-specific routes.
-- Use the task-scoped activity channel and multi-signal liveness protocol in [references/workflow.md](references/workflow.md#subagent-liveness-and-result-visibility). A quiet wait or elapsed time alone never justifies interruption.
+- Use the task-scoped activity channel and multi-signal liveness protocol in [references/workflow.md](references/workflow.md#subagent-liveness-and-result-visibility). A no-progress window may last up to 1800 seconds (30 minutes) before a full health check and checkpoint; a quiet wait or elapsed time alone never justifies interruption.
 - Wait for requested subagents, reconcile contradictions, and visibly relay every terminal result before changing phase.
 
 Use the table's routes by default. Any materially stronger or costlier model, effort, or compute mode is an upgrade and requires the immediately preceding numbered confirmation in [references/confirmation.md](references/confirmation.md#agent-upgrade-confirmation). Neither run-control mode waives it. If the user declines, keep the default when it can make progress; otherwise report the limitation. An unavailable default may be replaced by an equivalent or lower route with disclosure; a higher substitute still needs confirmation.
