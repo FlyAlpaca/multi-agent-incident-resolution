@@ -60,6 +60,10 @@ When diagnosis finds repair choices, automatic mode pauses and presents the numb
 
 Automatic mode also pauses before every Agent upgrade above the role defaults defined in `SKILL.md`. A general automatic-mode selection is not approval for a stronger model, higher effort, or higher-compute mode.
 
+Automatic execution removes routine phase confirmations, but it does not remove subagent routing disclosure. Before dispatching any subagent, emit a visible `commentary` update using `下一步执行：<角色或稳定标识>；模型：<精确模型>；推理强度：<精确强度>；任务：<有界职责>`. For a parallel batch, give one concise sentence per subagent with the same fields. Do not dispatch until every planned subagent has all four fields.
+
+After dispatch, every user-facing reference to a specific planned, running, substituted, failed, cancelled, blocked, or completed subagent must include that subagent's role or stable identifier, exact model, and reasoning effort in the same update. This applies to progress reports and terminal-result relays as well as dispatch notices. A substitution must disclose the replacement route before execution; an upgrade still requires the separate confirmation below. Generic descriptions of the workflow or role catalog that do not refer to an actual subagent execution are exempt.
+
 ## Agent upgrade confirmation
 
 Before every Agent upgrade, show the role, default model/effort, proposed model/effort or compute mode, reason, expected benefit, and additional cost/latency risk. Then present this numbered menu and wait, even when the user requested the upgrade earlier:

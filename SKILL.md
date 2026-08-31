@@ -91,6 +91,8 @@ Always display the Agent-upgrade menu immediately before dispatch and wait for t
 
 If a default route is unavailable, use an equivalent or lower configuration and disclose the substitution. Using a materially higher substitute still requires manual confirmation. Preserve an explicit user choice that satisfies these rules; do not abort an otherwise valid local workflow solely because routing metadata changed.
 
+In **自动全流程** mode, every user-facing mention of a planned, running, or completed subagent must identify that subagent's role or stable identifier, exact model, and reasoning effort. Before dispatch, also state its bounded task. Apply this disclosure to dispatch notices, progress updates, terminal-result relays, and substitutions; automatic execution waives the routine phase prompt, not routing transparency.
+
 In **单步确认** mode, a phase-transition checkpoint is invalid until it includes the mandatory next-execution disclosure from [references/confirmation.md](references/confirmation.md#stage-by-stage-confirmation-mode). When the main execution owner continues, identify it simply as `当前 Agent`; do not require or infer hidden session model metadata. When one or more subagents will run, state each subagent's role, exact model, reasoning effort, and bounded task before asking for confirmation.
 
 ## Bound authority and effort
