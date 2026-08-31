@@ -1,4 +1,4 @@
 interface:
   display_name: "Multi-Agent Incident Resolution"
-  short_description: "多 Agent 协作的证据驱动故障闭环修复"
-  default_prompt: "Use $multi-agent-incident-resolution to coordinate investigation, diagnosis, approved repair, verification, and independent review."
+  short_description: "证据驱动的多 Agent 故障闭环"
+  default_prompt: "Use $multi-agent-incident-resolution to run a bounded, evidence-driven incident workflow."

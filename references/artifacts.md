@@ -8,9 +8,21 @@ When a choice affects workflow state, record both its semantic value and the dis
 
 For hierarchical repair menus, `REPAIR_SELECTION_INDEX` records the primary prompt. Selecting **更多操作** leaves `REPAIR_SELECTION: PENDING` and sets `REPAIR_SECONDARY_INDEX: PENDING` until the secondary prompt is resolved. Use `CLIENT_OTHER` when the client-owned free-form option supplies a custom decision without a skill-controlled number; use `NOT_NEEDED` when the primary prompt directly resolves the repair set. The semantic `REPAIR_SELECTION` and `SELECTED_ISSUES` remain authoritative.
 
-Maintain an Agent proposal/dispatch ledger for the run. Record every dispatched Agent, including default-route Agents, and every proposed upgrade even when it is defaulted, customized, cancelled, or never dispatched. Give each proposal or dispatch a stable record ID; later status updates modify only that record and never replace it with a different proposal. Each record includes phase, role, default route, proposed and effective model/effort, reason, displayed upgrade-menu choice and index when applicable, dispatch status, result status, concise terminal conclusion or blocker, and `USER_RELAY_STATUS: PENDING | RELAYED | NOT_DISPATCHED`. A prior user model preference is proposal context only; an upgrade record cannot be `APPROVED` without the immediately preceding displayed menu being resolved. `AGENT_UPGRADE_COUNT` is the number of records whose proposal was above the role default, regardless of its final outcome; use `MIXED` when those records have different terminal outcomes. Set `RELAYED` only after the coordinator has surfaced that Agent's terminal result in the visible main conversation; artifact creation alone is not a relay.
+Maintain one proposal/dispatch ledger. Give every proposal or dispatch a stable record ID and update that record in place. Include default-route dispatches and upgrades that were defaulted, customized, cancelled, or never dispatched.
 
-An optional `.agent-progress/<stable-agent-id>.status` file is disposable runtime state, not an append-only workflow artifact. Assign at most one exact path per running Agent, keep it to a small rewritten snapshot, and record the path in that Agent's dispatch row. Delete that exact file after its terminal result is preserved and relayed. Never place durable evidence or the only copy of a conclusion in it.
+Each record contains:
+
+- identity and routing: phase, role, default route, proposed and effective model/effort, canonical disclosure label, and reason;
+- assignment: bounded task, high-level steps/milestones, expected result/artifact, and exact activity path;
+- channel guards: maximum record count, complete-record bytes, and total file-growth bytes;
+- observation plan: initial wait, health-check cadence, and credible next milestone;
+- decision and outcome: displayed upgrade choice/index when applicable, dispatch status, result status, terminal conclusion or blocker, and `USER_RELAY_STATUS: PENDING | RELAYED | NOT_DISPATCHED`.
+
+Use numeric units for counts, bytes, and durations. Channel guards are not work limits or timeouts; update them prospectively after authorized scope expansion. Preserve old rows without inventing historical values. Reuse the stored disclosure label verbatim. A prior model preference is context, not upgrade approval. Count every above-default proposal in `AGENT_UPGRADE_COUNT`; use `MIXED` when their outcomes differ. Set `RELAYED` only after the terminal result is visible in the main conversation.
+
+Reserve one append-only `<RUN_ARTIFACT_DIR>/.agent-progress/<stable-agent-id>.activity` path per active dispatch. [The workflow protocol](workflow.md#subagent-liveness-and-result-visibility) is authoritative for its schema, validation, reading, lifecycle, and cleanup. The ledger records the path and guards; it does not duplicate the protocol.
+
+All files created by this skill for one run must remain inside that run's recorded `RUN_ARTIFACT_DIR` so normal-completion cleanup can remove the complete intermediate set without scanning or deleting unrelated paths. Do not place workflow caches, test output, draft summaries, or progress state elsewhere. User-supplied incident inputs, project source, runtime data, service logs, and required deliverables are not workflow intermediates and must never be moved into the run directory merely to make cleanup convenient.
 
 Maintain `issue-ledger.md` as the canonical multi-issue inventory. Each row or section must include stable issue ID, title, status, severity, confidence, root-cause group, dependencies, repair type, approval, selection status, and latest verification result. Never renumber an issue during the same incident.
 

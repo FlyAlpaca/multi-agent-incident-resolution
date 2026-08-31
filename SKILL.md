@@ -1,139 +1,101 @@
 ---
 name: multi-agent-incident-resolution
-description: Coordinate specialized Agents to investigate incidents, diagnose root causes, implement approved repairs, verify regressions, and independently review delivery with evidence-first staging and bounded authority. Use for incident logs, failing tests, regressions, bug fixes, multi-issue triage, or explicit diagnose/repair/review workflows; do not use for ordinary feature work without a reported defect.
+description: Coordinate bounded, evidence-driven incident investigation, diagnosis, approved repair, verification, and independent review. Use for incident logs, failing tests, regressions, bug fixes, multi-issue triage, or explicit diagnose/repair/review workflows; do not use for ordinary feature work without a reported defect.
 ---
 
 # Multi-Agent Incident Resolution
 
-Coordinate a bounded incident workflow without confusing symptoms with root causes or allowing a repair to outrun the evidence.
+Resolve incidents without confusing symptoms with root causes or letting repairs outrun evidence and authority.
 
-## Confirm entry and select the scope
+## Confirm entry and scope
 
-Treat workflow scope and run control as two separate choices.
+At the first activation for each incident, use the single entry menu in [references/confirmation.md](references/confirmation.md), unless the request already selects **自动全流程**, **单步确认**, or **不进入流程** unambiguously. Before entry is confirmed, do not inspect the repository, run commands, create artifacts, delegate, or edit files. Keep the selection only for the current incident.
 
-Whenever presenting two or more actionable choices, present them exactly once through one delivery surface, with consecutive labels starting at `1`. Prefer a callable `request_user_input` prompt with at most three explicit choices; otherwise use one numbered textual list, never both for the same decision. Route overflow actions through the defined **更多操作** secondary prompt instead of exceeding the interactive limit. Never present selectable actions only as unnumbered prose or bullets. User input does not have to be numeric: accept a number, an exact label, a client-owned free-form **Other** result, or an unambiguous natural-language equivalent. If the response could map to more than one option, do not guess; show the same numbered choices again and ask for clarification. Apply the detailed output contract in [references/confirmation.md](references/confirmation.md) to every choice prompt, including repair selection.
+All menus and checkpoints follow the single-surface, numbered-choice contract in [references/confirmation.md](references/confirmation.md). A pending decision belongs in `request_user_input` when callable, otherwise in the final response—not in `commentary`.
 
-A checkpoint awaiting a user decision is a control prompt, not a progress update. Never place its decision context or choices in `commentary`. Use `request_user_input` when callable; otherwise place the complete checkpoint and its numbered choices in the non-collapsed final response and end the turn. Never leave the decision in `commentary` followed by an empty final response.
+After entry, infer the narrowest scope unless the user names one:
 
-At the first activation for each new incident, apply the single entry menu defined in [references/confirmation.md](references/confirmation.md) unless the activating request already makes the run-control choice explicit. Render that menu exactly once. Do not define, synthesize, summarize, or emit a second entry-choice list from this file.
+- `debug`: investigate, diagnose, implement, verify, and independently review;
+- `diagnose`: investigate and diagnose without source edits;
+- `repair`: implement, verify, and review an existing approved diagnosis;
+- `review`: review the current patch or branch without source edits.
 
-Do not inspect the repository, spawn agents, create artifacts, run commands, or modify files before entry is confirmed. Remember the choice for the current incident run only. A new incident requires a new entry confirmation. Read [references/confirmation.md](references/confirmation.md) for confirmation and pause semantics.
+A request to explain, inspect, diagnose, or review does not authorize implementation. A request to fix or repair authorizes in-scope local edits and non-destructive tests, subject to repository rules.
 
-After entry is confirmed, infer the narrowest workflow scope from the request:
-
-- **debug**: investigate, diagnose, implement, verify, and independently review. Use when the user asks to fix a defect.
-- **diagnose**: investigate and diagnose only. Do not modify source code.
-- **repair**: implement, verify, and independently review an existing approved diagnosis.
-- **review**: review the current patch or branch only. Do not modify source code.
-
-If the user names a mode, preserve it. A request to explain, inspect, diagnose, or review does not authorize implementation. A request to fix or repair authorizes in-scope local edits and non-destructive tests, subject to repository instructions.
-
-For every mode, read the applicable sections of [references/workflow.md](references/workflow.md): all stages for `debug`, stages 1-2 for `diagnose`, stages 3-5 for `repair`, and stage 5 for `review`. A `repair` run may re-enter diagnosis only to refresh stale or missing evidence, or after a failed implementation/review direction; it does not silently broaden into a new full-debug incident. Read [references/multi-issue.md](references/multi-issue.md) for `debug` and `diagnose`, and for `repair` or `review` whenever the artifacts contain multiple issues. Read [references/artifacts.md](references/artifacts.md) before creating, validating, or resuming workflow artifacts.
+Read the applicable parts of [references/workflow.md](references/workflow.md): stages 1–5 for `debug`, 1–2 for `diagnose`, 3–5 for `repair`, and 5 for `review`. Read [references/multi-issue.md](references/multi-issue.md) for `debug` and `diagnose`, and whenever `repair` or `review` contains multiple issues. Read [references/artifacts.md](references/artifacts.md) before creating, validating, or resuming artifacts.
 
 ## Establish the safety envelope
 
-Before any mutation:
+Before mutation:
 
 1. Read applicable `AGENTS.md` and repository instructions.
-2. Capture `git status --short`, the relevant diff, and recent history when Git is present.
-3. Treat all existing tracked and untracked changes as user-owned. Do not discard, reset, clean, stash, overwrite, or commit them unless the user explicitly authorized that exact operation or repository instructions require the commit.
-4. Identify the supplied incident material. Pass the incident log or reproduction input to every delegated phase; pass artifact paths instead of copying large histories.
-5. State expected behavior, observed behavior, trigger, earliest causally relevant failure, relevant code path, repair scope, and acceptance criteria. Mark unknowns as hypotheses.
+2. When Git is present, capture `git status --short`, the relevant diff, and recent history.
+3. Treat existing tracked and untracked changes as user-owned. Do not discard, reset, clean, stash, overwrite, or commit them without exact authorization or a repository requirement.
+4. Identify the incident input and pass it to every delegated phase. Pass artifact paths instead of copying large histories.
+5. Record expected and observed behavior, trigger, earliest causally relevant failure, relevant code path, repair scope, and acceptance criteria. Mark unknowns as hypotheses.
 
-Investigate beyond the first visible symptom when evidence suggests multiple failures, but stay within the incident's affected surfaces. Discovering an adjacent issue does not authorize fixing it. Give each independent root-cause candidate a stable issue ID and merge duplicate symptoms before diagnosis.
+Investigate additional failures only within the incident's affected surfaces. Give independent root-cause candidates stable issue IDs and merge duplicate symptoms. Adjacent findings do not authorize adjacent fixes.
 
-Never expose credentials. Redact tokens and secrets from artifacts and output. Do not weaken authentication, TLS, permissions, assertions, or security controls to make a failure disappear.
+Never expose credentials or write unredacted secret-bearing output to artifacts. Do not weaken authentication, TLS, permissions, assertions, or other security controls to suppress a failure.
 
 ## Classify the repair
 
-Default to `MINIMAL`.
+Default to `MINIMAL`. Use `STRUCTURAL` only when evidence shows the current data model, state machine, lifecycle ownership, concurrency boundary, API contract, or abstraction cannot enforce the required invariant.
 
-Choose `STRUCTURAL` only when evidence shows the current data model, state machine, lifecycle ownership, concurrency boundary, API contract, or abstraction cannot enforce the required invariant. A refactor being cleaner is not evidence.
+Before choosing `STRUCTURAL`, record why the smallest plausible patch would leave the failure class possible, accumulate special cases, or violate an invariant. If a focused, testable patch removes the root cause, use it.
 
-Before approving `STRUCTURAL`, construct the smallest plausible patch and record why it would leave the failure class possible, require accumulating special cases, or violate an invariant. If a focused minimal patch fully removes the root cause and is testable, use it.
+## Coordinate subagents
 
-## Agent roles and ownership
-
-This is a multi-Agent workflow, but delegation never grants shared write authority. The current Agent remains the coordinator and owns user confirmations, artifact state, issue selection, contradiction reconciliation, and workflow exit.
+The current Agent remains coordinator and owns user confirmations, artifact state, issue selection, contradiction resolution, and workflow exit. Delegation does not grant shared write authority.
 
 | Role | Responsibility | Default route | Write authority |
 |---|---|---|---|
-| Coordinator | Controls scope, checkpoints, artifacts, and final delivery | current Agent | workflow artifacts and approved coordination actions |
-| Investigator | Collects logs, runtime facts, source paths, and reproduction evidence | `gpt-5.6-luna/max` | read-only |
-| Diagnostician | Classifies each issue, identifies root cause/invariant, and proposes the smallest repair | `gpt-5.6-sol/medium` | read-only |
-| Implementer | Applies the selected repair and focused tests | `gpt-5.6-luna/max` | exactly one writer |
-| Verifier | Runs focused, regression, quality, and recurrence checks when delegation adds value | `gpt-5.6-luna/max` | read-only |
-| Independent reviewer | Adversarially reviews the final diff and evidence | `gpt-5.6-sol/medium` | read-only |
+| Coordinator | Scope, checkpoints, artifacts, final delivery | current Agent | workflow artifacts and approved coordination actions |
+| Investigator | Logs, runtime facts, source paths, reproduction evidence | `gpt-5.6-luna/max` | read-only |
+| Diagnostician | Root cause, invariant, classification, smallest repair | `gpt-5.6-sol/medium` | read-only |
+| Implementer | Selected repair and focused tests | `gpt-5.6-luna/max` | sole source writer |
+| Verifier | Focused, regression, quality, and recurrence checks | `gpt-5.6-luna/max` | read-only |
+| Independent reviewer | Adversarial review of final diff and evidence | `gpt-5.6-sol/medium` | read-only |
 
-Use only the roles that materially improve the current phase. Do not spawn Agents for ceremony, do not run concurrent writers, and do not let a reviewer repair its own findings. Every handoff must carry the same incident input, repository instructions, workspace snapshot, artifact directory, bounded task, and explicit read/write/service-control boundary.
+This skill authorizes subagent delegation in any mode when a concrete, independent phase materially improves evidence, verification, or review and the client supports it.
 
-## Use agents deliberately
+- Use only roles that add value; do not delegate ceremonially.
+- Parallelize independent read-only work, but keep implementation under one writer and never let a reviewer fix its own findings.
+- Give each subagent the incident input, repository rules, workspace snapshot, run directory, bounded task, and explicit authority boundary. Prefer short or no history forks for phase-specific routes.
+- Use the task-scoped activity channel and multi-signal liveness protocol in [references/workflow.md](references/workflow.md#subagent-liveness-and-result-visibility). A quiet wait or elapsed time alone never justifies interruption.
+- Wait for requested subagents, reconcile contradictions, and visibly relay every terminal result before changing phase.
 
-Applicable instructions in this skill authorize subagent delegation in any mode when a concrete, independent phase would materially improve evidence, verification, or review and the client supports it.
+Use the table's routes by default. Any materially stronger or costlier model, effort, or compute mode is an upgrade and requires the immediately preceding numbered confirmation in [references/confirmation.md](references/confirmation.md#agent-upgrade-confirmation). Neither run-control mode waives it. If the user declines, keep the default when it can make progress; otherwise report the limitation. An unavailable default may be replaced by an equivalent or lower route with disclosure; a higher substitute still needs confirmation.
 
-- Delegate only concrete, independent work. Prefer parallel agents for read-heavy investigation, environment checks, test analysis, or adversarial review.
-- Keep implementation under one writer. Never let multiple agents edit the same working tree concurrently.
-- Prefer a final reviewer that is independent of the implementation agent and does not modify source. Apply the bounded no-subagent fallback in [references/workflow.md](references/workflow.md) only when true independence is unavailable.
-- If the defect is small and already well evidenced, skip unnecessary parallel investigation. Do not spawn agents merely to satisfy a fixed count.
-- Use short or no history forks when selecting a phase-specific model; give the agent the incident input, applicable repository rules, task, and artifact paths.
-- Match wait windows to the delegated work. When Agent state and messages are insufficient, use the bounded liveness checks in [references/workflow.md](references/workflow.md#subagent-liveness-and-result-visibility). Elapsed time or one quiet wait alone never justifies interrupting or replacing an Agent.
-- Wait for requested Agents and reconcile contradictions before moving to the next phase. After consuming each terminal result—including failure, cancellation, or blockage—relay that Agent's conclusion in a visible `commentary` update before the phase transition. An internal notification, artifact, or final summary alone is insufficient.
-
-Use these default Agent routes:
-
-- read-heavy investigation and verification: `gpt-5.6-luna` with `max` effort;
-- implementation: `gpt-5.6-luna` with `max` effort;
-- diagnosis and independent review: `gpt-5.6-sol` with `medium` effort.
-
-Treat any move above the applicable role default as an Agent upgrade. This includes moving a Luna role to Terra, Sol, or another more capable tier; raising a Sol role above `medium`; enabling a higher-compute mode; or selecting another configuration that is materially more capable or costly. Before dispatching the upgraded Agent, apply the mandatory numbered confirmation in [references/confirmation.md](references/confirmation.md). **自动全流程** never waives this boundary.
-
-Always display the Agent-upgrade menu immediately before dispatch and wait for the user's response. A model preference or upgrade request stated earlier in the incident may prefill the proposal but never replaces this confirmation. If the user declines an upgrade, keep the role default when it can still make meaningful progress; otherwise stop or report the unresolved limitation instead of silently upgrading.
-
-If a default route is unavailable, use an equivalent or lower configuration and disclose the substitution. Using a materially higher substitute still requires manual confirmation. Preserve an explicit user choice that satisfies these rules; do not abort an otherwise valid local workflow solely because routing metadata changed.
-
-In **自动全流程** mode, every user-facing mention of a planned, running, or completed subagent must identify that subagent's role or stable identifier, exact model, and reasoning effort. Before dispatch, also state its bounded task. Apply this disclosure to dispatch notices, progress updates, terminal-result relays, and substitutions; automatic execution waives the routine phase prompt, not routing transparency.
-
-In **单步确认** mode, a phase-transition checkpoint is invalid until it includes the mandatory next-execution disclosure from [references/confirmation.md](references/confirmation.md#stage-by-stage-confirmation-mode). When the main execution owner continues, identify it simply as `当前 Agent`; do not require or infer hidden session model metadata. When one or more subagents will run, state each subagent's role, exact model, reasoning effort, and bounded task before asking for confirmation.
+For every actual subagent in either run-control mode, apply the canonical label and pre-send disclosure contract in [references/confirmation.md](references/confirmation.md#subagent-routing-disclosure). In **单步确认** mode, also disclose the next executor at every phase or Agent-switch checkpoint.
 
 ## Bound authority and effort
 
-Treat permissions as action boundaries, not labels that grant new authority:
+- **Read-only:** inspect files, logs, diffs, history, and configuration.
+- **Local validation:** create disposable test output and run non-destructive checks.
+- **In-scope repair:** edit requested local code and tests after diagnosis supports the change.
+- **Expanded or structural change:** pause when it materially expands the request, changes a public contract, or repository policy requires approval.
+- **High-impact action:** obtain explicit confirmation immediately before external writes, deployment, destructive deletion, history rewriting, credential changes, purchases, or production mutation unless that exact action is already authorized.
 
-- **Read-only**: inspect files, logs, diffs, history, and configuration.
-- **Local validation**: create disposable test output and run non-destructive checks.
-- **In-scope repair**: edit requested local code and tests after diagnosis supports the change.
-- **Expanded or structural change**: pause only when it materially expands the user's request, changes a public contract, or repository policy requires approval/documentation.
-- **High-impact action**: obtain explicit confirmation immediately before external writes, deployment, destructive deletion, history rewriting, credential changes, purchases, or production mutation unless the user already authorized that exact action.
-
-Do not invent a token budget or claim exact token accounting. Honor explicit user budgets. Otherwise limit work by scope: at most two implementation attempts per selected issue or shared repair direction, one writer, and only the independent agents that materially improve evidence or review.
+Do not invent a token budget or claim exact token accounting. Honor explicit budgets. Otherwise bound work by scope: no more than two implementation attempts per selected issue or shared repair direction, one writer, and only useful independent subagents.
 
 ## Stop conditions
 
 Stop patching and report the blocker when:
 
 - the same issue or shared repair direction fails twice;
-- the diagnosis remains low-confidence after targeted investigation and expert escalation;
+- diagnosis remains low-confidence after targeted investigation and expert escalation;
 - reproduction depends on unavailable external state and safe checks are exhausted;
-- required authority would expand beyond the user's request;
-- existing user changes cannot be safely preserved;
-- verification shows a pre-existing or environmental failure that cannot be distinguished from the repair.
+- required authority exceeds the request;
+- user changes cannot be preserved safely; or
+- verification cannot distinguish a pre-existing or environmental failure from the repair.
 
-Do not add retries, increase timeouts, swallow exceptions, or weaken tests to hide a deterministic failure.
+Do not hide deterministic failures with retries, longer timeouts, swallowed exceptions, or weaker tests.
 
-## Repair completion gate
+## Completion gate
 
-Apply this gate only to `debug` or `repair` runs that entered implementation. A `diagnose` run completes at a valid stage-2 terminal state, and a standalone `review` run completes at a valid stage-5 terminal state; neither must satisfy implementation-only conditions. An implemented repair is complete only when:
+The implementation gate applies only to `debug` or `repair` runs that entered implementation. `diagnose` ends at a valid stage-2 terminal state; standalone `review` ends at a valid stage-5 terminal state.
 
-1. every discovered issue is diagnosed, explicitly deferred, or marked blocked with a reason;
-2. each selected issue has an identified root cause and violated invariant;
-3. `MINIMAL` or `STRUCTURAL` is justified per selected issue or shared root-cause group;
-4. implementation matches the user's selected repair set and approved scope;
-5. the original failure and every selected issue no longer reproduce under relevant checks;
-6. focused per-issue tests and combined regression tests pass;
-7. the bounded recurrence scan is `CLEAR`, or its findings have `RECURRENCE_TRIAGE_STATUS: COMPLETE`, without silently expanding the selected set;
-8. disposable diagnostic residue is absent and every intentionally retained diagnostic change is justified and tested;
-9. unexplained regressions are absent or explicitly separated as pre-existing/environmental;
-10. review returns `DECISION: PASS` with `REVIEW_INDEPENDENCE: INDEPENDENT`, or with `LIMITED` only under the narrow fallback criteria in the workflow;
-11. deferred issues, blocked issues, remaining risks, and unverified assumptions are stated.
+An implemented repair is complete only when all selected issues have a supported root cause and repair classification, implementation matches the selected scope, focused and combined checks pass, recurrence findings are cleared or fully triaged, diagnostic residue is handled, regressions are explained, and review returns `PASS` with permitted independence. Every discovered, deferred, blocked, or unverified issue and remaining risk must be stated. The detailed stage and marker requirements in [references/workflow.md](references/workflow.md) and [references/artifacts.md](references/artifacts.md) are authoritative.
 
-Lead the workflow-exit response with the outcome. Immediately before an incident leaves this workflow, emit exactly one visibly labeled `处理总结` section, regardless of mode, whether files changed, or whether the exit is complete, partial, failed, blocked, stopped, or cancelled. This is a workflow-exit hook, not a per-turn or per-step hook: do not emit it at entry confirmation, phase checkpoints, repair or Agent menus, progress updates, or a resumable pause. When nothing changed, explicitly report `修改状态: 未修改` and the reason. Do not treat an unlabeled closing paragraph, an artifact, or an earlier progress update as satisfying this requirement. Apply the single detailed summary contract in [references/workflow.md](references/workflow.md#completion-summary). Cite files with clickable paths when available.
+On workflow exit, lead with exactly one `处理总结` section using [the completion contract](references/workflow.md#completion-summary). For normal completion in either run-control mode, synthesize the summary first and then clean only the validated current `RUN_ARTIFACT_DIR` with `scripts/cleanup-run-artifacts.sh`. Preserve artifacts for partial, failed, blocked, stopped, cancelled, or paused runs.
