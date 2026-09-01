@@ -3,12 +3,14 @@
 This protocol is the sole authority for dispatched-task state, checkpoints, observation, intervention, and terminal preservation. Resolve these paths under the current `RUN_ARTIFACT_DIR`:
 
 ```text
-artifacts/tasks/<task-id>/state.md
-artifacts/tasks/<task-id>/result.md
-artifacts/tasks/<task-id>/events.jsonl
+tasks/<task-id>/state.md
+tasks/<task-id>/result.md
+tasks/<task-id>/events.jsonl
 ```
 
 The subagent is the normal writer of `state.md`. The coordinator reads it and records observation decisions in the dispatch ledger; it must not rewrite a live subagent's state. Use `events.jsonl` only when a complex or abnormal task needs an append-only diagnostic history. Do not create heartbeat, polling, or auxiliary status files.
+
+Completion is a one-way handoff. When the bounded task's acceptance criteria are met, the subagent must write its result, enter `DONE`, return the result to the coordinator, and stop. It must not continue waiting, polling, retrying, or spinning after completion. `WAITING` is only for an unresolved pre-completion condition.
 
 ## Work plan and checkpoints
 
@@ -108,6 +110,8 @@ Read `state.md` for routine status instead of asking duplicate questions such as
 ## Terminal handling
 
 On normal completion, atomically write `result.md` first, then atomically write the final checkpoint as terminal `state.md`. This ordering ensures that a visible terminal state always has a complete result available. A terminal state has no current plan step; record unfinished steps and limitations explicitly.
+
+After observing `DONE`, consume `result.md` and terminal `state.md`, then confirm through the runtime that the dispatch is no longer running. If the runtime exposes an explicit close/reclaim operation, invoke it; if it automatically terminates completed workers, its terminal status is sufficient. Do not invent a tool name, call interruption on an already terminal worker, or keep polling after terminal status is confirmed. Record the evidence and method in the dispatch ledger as `WORKER_LIFECYCLE: TERMINAL_CONFIRMED`. If the runtime still reports the worker as running, use its supported stop operation and verify again; record `TERMINATION_FAILED` and block the phase transition only when a supported stop attempt fails or terminal state cannot be established.
 
 Before an authorized interruption, preserve current state and useful evidence. After interruption, write a partial `result.md` when possible, then ensure `state.md` records `CANCELLED` or `FAILED`, the cause, state at termination, last meaningful progress, retained evidence, and recommendation. If the subagent cannot write the terminal snapshot, the coordinator may finalize it only after the task is no longer writing and must identify the coordinator-authored update.
 

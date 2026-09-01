@@ -23,11 +23,13 @@ This section is the only source of the entry menu for an incident. Render it exa
 
 Before taking workflow actions, present these three choices in simplified Chinese:
 
-1. **自动全流程** — execute the selected `debug`, `diagnose`, `repair`, or `review` scope continuously until completion, a stop condition, an unapproved Agent upgrade above the role default, or a high-impact approval boundary; after normal completion, automatically remove only this run's intermediate-artifact directory.
-2. **单步确认** — execute one phase or one approved Agent batch at a time and wait for confirmation before the next transition; normal completion also automatically removes only this run's intermediate-artifact directory.
-3. **不进入流程** — do not start this workflow. If the user also requested a narrower action that does not rely on the workflow, perform only that action within its existing authorization; otherwise stop.
+1. **自动全流程** — 在选定的 `debug`、`diagnose`、`repair` 或 `review` 范围内持续执行，直到正常完成、命中停止条件、需要批准高于默认值的 Agent 升级，或到达高影响操作边界；正常完成后仅自动清理本次运行的中间工件目录。
+2. **单步确认** — 每次只执行一个阶段或一批已批准的 Agent，转换到下一阶段前等待确认；正常完成后同样仅自动清理本次运行的中间工件目录。
+3. **Codex 原生处理** — 停用本 Skill 工作流，并使用默认 Codex 工作流继续处理原请求；保留用户原有的范围与授权，不再应用本 Skill 的工件、阶段、Agent 路由、菜单或处理总结协议。
 
-If the user already says “自动全流程”, “单步确认”, “不进入流程”, or an unambiguous equivalent in the activating request, adopt it without asking again. An explicit `$multi-agent-incident-resolution` invocation selects the skill but does not by itself select run control.
+The visible option label is only **Codex 原生处理**. Its operational semantics are both: disable this skill workflow, then continue the same request with the default Codex workflow. Do not expose the internal English instruction as a label, alias, parenthetical, or additional choice.
+
+If the user already says “自动全流程”, “单步确认”, “Codex 原生处理”, or an unambiguous equivalent in the activating request, adopt it without asking again. An explicit `$multi-agent-incident-resolution` invocation selects the skill but does not by itself select run control.
 
 Do not persist the selection globally. Keep it only for the current incident. If the incident materially changes, ask again.
 
@@ -61,14 +63,7 @@ Before dispatching, emit a visible `commentary` update using `下一步执行：
 
 Record the complete dispatch fields required by [artifacts.md](artifacts.md). They include the task plan, canonical `state.md` path, optional `events.jsonl` path when justified, and task-specific observation schedule; transport/channel limits are not work limits or timeout decisions.
 
-After dispatch, paste the same canonical label verbatim into every user-facing reference to that specific planned, running, substituted, failed, cancelled, blocked, or completed subagent. Never shorten it to bare wording such as `验证 Agent` or `独立 Reviewer`, even when the route appeared in an earlier update. This applies to progress reports, terminal-result relays, descriptions of a planned next Agent, and the final summary. A substitution creates a new label that must be disclosed before execution; an upgrade still requires the separate confirmation below. Generic descriptions of a workflow stage or role catalog that do not refer to an actual subagent execution are exempt.
-
-Before sending a user-facing message:
-
-1. identify every phrase that refers to an actual past, current, or planned subagent, including a next Agent mentioned only in the final sentence;
-2. match each phrase to exactly one retained canonical label and effective route;
-3. if any actual subagent reference lacks its full label, or its model/effort differs from the effective dispatch route, do not send the draft—rewrite it first;
-4. when several Agents appear in one update, check and label each one separately; an aggregate statement never satisfies another Agent's disclosure.
+After dispatch, use the same canonical label verbatim in every user-facing reference to that actual subagent, including progress, substitution, failure, cancellation, terminal relay, planned next execution, and final summary. Label each member of a batch separately. A substitution gets a newly disclosed label; an upgrade still requires confirmation. Generic references to a stage or role catalog are exempt.
 
 Invalid: `验证 Agent 正在运行；之后由独立 Reviewer 复核。`
 

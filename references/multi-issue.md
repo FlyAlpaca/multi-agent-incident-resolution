@@ -103,7 +103,7 @@ Freeze the selected issue IDs before writing. A newly discovered issue returns t
 
 Use one writer. Order repairs by dependency and shared root cause. Keep unrelated fixes separable when repository policy requires independent commits. If one issue fails verification, do not undo verified independent repairs or continue patching that issue beyond two attempts; mark its status clearly and assess whether dependent issues must stop.
 
-After implementing the selected set, perform one bounded scan of the affected surface for the same violated invariant or defect pattern. Record the search scope and method. Use `RECURRENCE_SCAN_STATUS: CLEAR` when none are found. When credible candidates are found, set `RECURRENCE_SCAN_STATUS: FINDINGS` and `RECURRENCE_TRIAGE_STATUS: PENDING`, add them to the ledger, and return them to diagnosis and repair selection; never silently append them to `SELECTED_ISSUES`. Set triage to `COMPLETE` only after every finding is classified, selected, or explicitly deferred. Do not use this scan as authority for unrelated cleanup or a repository-wide audit.
+Apply the bounded recurrence scan defined in [workflow.md](workflow.md#4-verification). For multiple issues, add credible candidates to the ledger and return them to diagnosis and repair selection; never silently append them to `SELECTED_ISSUES` or treat the scan as unrelated cleanup authority.
 
 Verify:
 

@@ -1,6 +1,6 @@
 # Full workflow
 
-Use all stages for `debug`, stages 1-2 for standalone `diagnose`, stages 3-5 for `repair`, and stage 5 for standalone `review`. A `repair` run may re-enter stages 1-2 only when its supplied diagnosis is stale or incomplete, or when implementation or review evidence invalidates the current repair direction. A standalone `review` remains read-only and never transitions into diagnosis or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
+Use all stages for `debug`, stages 1-2 for standalone `diagnose`, stages 3-5 for `repair`, and stage 5 for standalone `review`. At `repair` entry, validate and normalize a supplied diagnosis into the required run artifacts; re-enter stages 1-2 only when it is stale or incomplete, or when later evidence invalidates the repair direction. A standalone `review` remains project-source read-only and never transitions into diagnosis or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
 
 ## Workspace and artifact location
 
@@ -24,7 +24,7 @@ Apply the selected run-control mode from [confirmation.md](confirmation.md). In 
 
 Before dispatching or monitoring a subagent, follow [the subagent state and timeout protocol](subagent-state.md) as the sole authority for task paths, work-step checkpoints, lifecycle state, observation thresholds, intervention, and terminal preservation. Resolve its task paths under the current `<RUN_ARTIFACT_DIR>` and create the dispatch-ledger record required by [artifacts.md](artifacts.md) before dispatch. Pass the state path and checkpoint obligations in the assignment; keep coordinator observations in the ledger rather than rewriting a live subagent's state.
 
-After consuming a terminal result and before changing phase or exiting, relay it in visible `commentary`: canonical label and state, conclusion, strongest evidence, limitations or blockers, and effect on the next step. Apply [the routing-disclosure contract](confirmation.md#subagent-routing-disclosure). A parallel update may be compact but must distinguish every subagent and expose failures. Internal notifications, artifacts, and the final summary do not replace this relay.
+Before changing phase or exiting, complete the result-consumption, runtime-terminal-confirmation, ledger, and visible-relay gates in [subagent-state.md](subagent-state.md#terminal-handling). Apply [the routing-disclosure contract](confirmation.md#subagent-routing-disclosure) to the relay.
 
 ## 1. Investigation
 
@@ -143,7 +143,7 @@ For `debug` or `repair`, if review fails and the total implementation-attempt li
 
 After entry, treat the summary as the incident's single workflow-exit hook. Immediately before the run exits, the user-facing exit response must contain exactly one distinct Markdown section headed exactly `处理总结`. An exit occurs when the selected `debug`, `diagnose`, `repair`, or `review` scope completes, or when the run ends partial, failed, blocked with no permitted progress, explicitly stopped, or cancelled. This applies in both automatic and single-step modes whether or not any file changed.
 
-Do not emit `处理总结` at entry confirmation, a phase transition checkpoint, a repair-selection or Agent-upgrade menu, a routine progress response, or a resumable pause awaiting the next confirmation. Those are intermediate workflow turns even if the client renders them as a completed assistant response. Emit the section only once, when the overall incident run actually exits. A later resume continues the same unsummarized run; if a paused run is later stopped or cancelled instead, emit the summary at that exit. Entry option `不进入流程` never starts the contract.
+Do not emit `处理总结` at entry confirmation, a phase transition checkpoint, a repair-selection or Agent-upgrade menu, a routine progress response, or a resumable pause awaiting the next confirmation. Those are intermediate workflow turns even if the client renders them as a completed assistant response. Emit the section only once, when the overall incident run actually exits. A later resume continues the same unsummarized run; if a paused run is later stopped or cancelled instead, emit the summary at that exit. Entry option **Codex 原生处理** disables this workflow and continues under the default Codex workflow, so it never starts this contract.
 
 The summary must appear in the workflow-exit response itself; an artifact, commentary update, commit message, or earlier phase report does not satisfy the requirement.
 
