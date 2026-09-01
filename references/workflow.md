@@ -22,9 +22,10 @@ Apply the selected run-control mode from [confirmation.md](confirmation.md). In 
 
 ## Subagent state, liveness and result visibility
 
-Before dispatching or monitoring a subagent, follow [the subagent state and timeout protocol](subagent-state.md) as the sole authority for task paths, state schema, write timing, liveness signals, thresholds, intervention, and terminal preservation. Resolve its task paths under the current `<RUN_ARTIFACT_DIR>` and create the dispatch-ledger record required by [artifacts.md](artifacts.md) before dispatch.
+Before dispatching or monitoring a subagent, follow [the subagent state and timeout protocol](subagent-state.md) as the sole authority for task paths, work-step checkpoints, lifecycle state, observation thresholds, intervention, and terminal preservation. Resolve its task paths under the current `<RUN_ARTIFACT_DIR>` and create the dispatch-ledger record required by [artifacts.md](artifacts.md) before dispatch. Pass the state path and checkpoint obligations in the assignment; keep coordinator observations in the ledger rather than rewriting a live subagent's state.
 
 After consuming a terminal result and before changing phase or exiting, relay it in visible `commentary`: canonical label and state, conclusion, strongest evidence, limitations or blockers, and effect on the next step. Apply [the routing-disclosure contract](confirmation.md#subagent-routing-disclosure). A parallel update may be compact but must distinguish every subagent and expose failures. Internal notifications, artifacts, and the final summary do not replace this relay.
+
 ## 1. Investigation
 
 Goal: establish reproducible facts without editing source.

@@ -55,7 +55,7 @@ The current Agent remains coordinator and owns user gates, incident scope, artif
 | Independent reviewer | Adversarial review of final diff and evidence | `gpt-5.6-sol/medium` | read-only |
 
 - Use only roles that add value. Parallelize independent read-only work; keep implementation under one writer, and never let a reviewer fix its own findings.
-- Give every subagent the incident input, repository rules, workspace snapshot, run directory, bounded task, and explicit authority boundary.
+- Give every subagent the incident input, repository rules, workspace snapshot, run directory, bounded task, explicit authority boundary, and its assigned state/result paths.
 - Apply the routing disclosure and upgrade rules in [confirmation.md](references/confirmation.md) and the state protocol in [subagent-state.md](references/subagent-state.md). Wait for requested agents, reconcile contradictions, and relay every terminal result before changing phase.
 - Treat the routes above as defaults. An equivalent or lower available route may substitute with disclosure. A higher-cost route needs confirmation unless the user has already explicitly authorized that exact role and configuration for this incident.
 
