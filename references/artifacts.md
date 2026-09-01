@@ -4,6 +4,8 @@ Artifacts are concise decision records. Include exact file paths, symbols, comma
 
 Record `RUN_MODE: DEBUG | DIAGNOSE | REPAIR | REVIEW`, `RUN_CONTROL: AUTO | STEP`, `ENTRY_SELECTION_INDEX: 1 | 2`, `ARTIFACT_ROOT`, and `RUN_ARTIFACT_DIR` in the first artifact for the incident. Resolve both paths using the discovery and naming contract in [workflow.md](workflow.md#workspace-and-artifact-location). Entry option `3` (**Codex 原生处理**) disables this workflow before a run starts, so do not create an artifact solely to record it; processing continues under the default Codex workflow. When paused, record the last completed phase and exact pending action without marking an unstarted later phase complete.
 
+Record `EARLY_EXIT_REASON` and `EARLY_EXIT_PHASE` in the terminal artifact. Use `NONE` for both on a full run. The reason vocabulary is intentionally specific; do not collapse an unresolved repair, a deferred issue, a declined repair, an already-present change, and an empty review scope into a generic no-change result.
+
 When a choice affects workflow state, record both its semantic value and the displayed option number after normalizing the user's input. The user may have replied with text; the stored number represents the numbered menu that was shown, not an input-format requirement.
 
 For hierarchical repair menus, `REPAIR_SELECTION_INDEX` records the primary prompt. Selecting **更多操作** leaves `REPAIR_SELECTION: PENDING` and sets `REPAIR_SECONDARY_INDEX: PENDING` until the secondary prompt is resolved. Use `CLIENT_OTHER` when the client-owned free-form option supplies a custom decision without a skill-controlled number; use `NOT_NEEDED` when the primary prompt directly resolves the repair set. The semantic `REPAIR_SELECTION` and `SELECTED_ISSUES` remain authoritative.
@@ -49,6 +51,9 @@ EVIDENCE_STATUS: COMPLETE | BLOCKED
 ISSUE_DISCOVERY_STATUS: COMPLETE | BOUNDED | BLOCKED
 ISSUES_FOUND: <non-negative integer>
 
+EARLY_EXIT_REASON: NONE | NO_ISSUE | NO_ACTIONABLE_REPAIR | NO_REPAIR_SELECTED | CHANGE_ALREADY_PRESENT | EMPTY_REVIEW_SCOPE
+EARLY_EXIT_PHASE: NONE | INVESTIGATION | DIAGNOSIS | REPAIR_SELECTION | VERIFICATION | REVIEW
+
 DIAGNOSIS_STATUS: COMPLETE | BLOCKED
 REPAIR_TYPE: MINIMAL | STRUCTURAL | MIXED | UNDETERMINED
 CONFIDENCE: HIGH | MEDIUM | LOW | MIXED
@@ -62,7 +67,7 @@ SELECTED_ISSUES: PENDING | ISSUE-001,ISSUE-002 | NONE
 AGENT_UPGRADES: NONE | PENDING | APPROVED | PREAUTHORIZED | DEFAULTED | CUSTOM | MIXED | CANCELLED
 AGENT_UPGRADE_COUNT: <non-negative integer>
 
-IMPLEMENTATION_STATUS: COMPLETE | PARTIAL | BLOCKED
+IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED
 ATTEMPT: 1 | 2 | MIXED
 
 VERIFICATION_STATUS: PASS | PARTIAL | FAIL | BLOCKED
@@ -77,14 +82,14 @@ DECISION: PASS | FAIL | BLOCKED
 
 ## Required markers by mode
 
-- `DEBUG` requires run metadata and all investigation, diagnosis, repair-selection, implementation, verification, recurrence, residue, and review markers.
-- `DIAGNOSE` requires run metadata plus investigation and diagnosis markers. Record repair selection as `PENDING` or `NONE` when it is discussed, but implementation, verification, and review markers are not required.
-- `REPAIR` requires run metadata, a validated diagnosis and repair selection from current artifacts, then implementation, verification, recurrence, residue, and review markers.
-- `REVIEW` requires run metadata plus `REVIEW_STATUS`, `REVIEW_INDEPENDENCE`, and `DECISION`. Earlier-phase markers are optional; when absent, state the resulting coverage limitation.
-- Agent-upgrade aggregate markers and the dispatch table are required whenever an Agent is proposed or dispatched; otherwise `AGENT_UPGRADES: NONE` and count `0` are sufficient.
+- `DEBUG` normally requires run metadata and all investigation, diagnosis, repair-selection, implementation, verification, recurrence, residue, and review markers. When `EARLY_EXIT_REASON` is not `NONE`, require only the markers for phases actually run plus the terminal early-exit markers; do not fabricate skipped-phase markers.
+- `DIAGNOSE` normally requires run metadata plus investigation and diagnosis markers. Record repair selection as `PENDING` or `NONE` when it is discussed, but implementation, verification, and review markers are not required. If investigation exits with `EARLY_EXIT_REASON: NO_ISSUE`, diagnosis markers are not required. Finishing diagnosis with no actionable repair is normal scope completion, not an early exit, because standalone `diagnose` never included implementation.
+- `REPAIR` normally requires run metadata, a validated diagnosis and repair selection from current artifacts, then implementation, verification, recurrence, residue, and review markers. A diagnosis or selection early exit omits later markers. `CHANGE_ALREADY_PRESENT` still requires implementation and focused-verification markers, but not recurrence, residue, or review markers when this run made no source change.
+- `REVIEW` normally requires run metadata plus `REVIEW_STATUS`, `REVIEW_INDEPENDENCE`, and `DECISION`. Earlier-phase markers are optional; when absent, state the resulting coverage limitation. `EMPTY_REVIEW_SCOPE` may stop after resolving the comparison target and confirming its diff is empty; review-result markers are then unnecessary, and no findings may be invented.
+- Agent-upgrade aggregate markers and the dispatch table are required whenever an Agent is proposed or dispatched; otherwise `AGENT_UPGRADES: NONE` and count `0` are sufficient. Do not dispatch a later-stage Agent after an early-exit condition is met.
 - Every dispatched Agent must have a terminal result or an explicit interrupted/unavailable status, a concise conclusion or blocker, `USER_RELAY_STATUS: RELAYED`, and `WORKER_LIFECYCLE: TERMINAL_CONFIRMED` before the workflow transitions past that Agent's phase or exits. `SELF_REPORTED` alone is insufficient when the runtime still reports the dispatch as running; `TERMINATION_FAILED` blocks normal completion.
 
-Do not claim a later phase passed when an earlier marker required by the current mode is absent, invalid, or contradicted by the artifact body. Standalone `REVIEW` is not blocked solely because investigation, diagnosis, implementation, or verification artifacts are absent.
+Do not claim a later phase passed when an earlier marker required by the current mode is absent, invalid, or contradicted by the artifact body. A phase skipped by a valid early exit is not a failure and must remain unmarked. Standalone `REVIEW` is not blocked solely because investigation, diagnosis, implementation, or verification artifacts are absent.
 
 For a multi-issue run, the diagnosis markers are aggregate summaries: use `MIXED` when repair types or confidence differ, and `PARTIAL` when only some issues are approved. Per-issue values in `issue-ledger.md` control selection and implementation; an aggregate `YES` never overrides a per-issue `NO`.
 

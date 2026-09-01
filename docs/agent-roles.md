@@ -40,4 +40,4 @@
 
 ## 运行工件
 
-Skill 创建的证据、草稿、缓存和进度状态均放入当前 `RUN_ARTIFACT_DIR`。正常完成后只清理这个经过校验的运行目录；其他退出状态保留工件。边界和脚本调用见 [references/workflow.md](../references/workflow.md#run-artifact-cleanup)。
+Skill 创建的证据、草稿、缓存和进度状态均放入当前 `RUN_ARTIFACT_DIR`。完整或提前正常完成后只清理这个经过校验的运行目录；其他退出状态保留工件。边界和脚本调用见 [references/workflow.md](../references/workflow.md#run-artifact-cleanup)。

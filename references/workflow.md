@@ -1,6 +1,20 @@
-# Full workflow
+# Workflow
 
-Use all stages for `debug`, stages 1-2 for standalone `diagnose`, stages 3-5 for `repair`, and stage 5 for standalone `review`. At `repair` entry, validate and normalize a supplied diagnosis into the required run artifacts; re-enter stages 1-2 only when it is stale or incomplete, or when later evidence invalidates the repair direction. A standalone `review` remains project-source read-only and never transitions into diagnosis or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
+Use all applicable stages for `debug`, stages 1-2 for standalone `diagnose`, stages 3-5 for `repair`, and stage 5 for standalone `review`, unless an early-exit rule below applies. At `repair` entry, validate and normalize a supplied diagnosis into the required run artifacts; re-enter stages 1-2 only when it is stale or incomplete, or when later evidence invalidates the repair direction. A standalone `review` remains project-source read-only and never transitions into diagnosis or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
+
+## Early-exit rules
+
+The nominal stage list is an upper bound. After every phase terminal result, apply the first matching rule before starting or dispatching the next phase:
+
+| Condition | `EARLY_EXIT_REASON` | Exit after | Required evidence |
+|---|---|---|---|
+| Investigation finds no credible defect or actionable incident issue | `NO_ISSUE` | Investigation | Complete or bounded discovery, zero issues, and disproved candidates |
+| In `debug` or `repair`, diagnosis leaves no approved actionable repair | `NO_ACTIONABLE_REPAIR` | Diagnosis | Per-issue classifications and reasons, including deferred items |
+| In `debug` or `repair`, the user selects no repair | `NO_REPAIR_SELECTED` | Repair selection | Explicit selection and `SELECTED_ISSUES: NONE` |
+| An approved repair is already present and focused verification passes without a source change | `CHANGE_ALREADY_PRESENT` | Verification | `IMPLEMENTATION_STATUS: NO_CHANGE` plus focused verification of the original invariant |
+| A standalone review has no changed artifact in its explicitly resolved scope | `EMPTY_REVIEW_SCOPE` | Review scope check | The resolved comparison target and evidence that its diff is empty |
+
+`NEEDS_DECISION` and `BLOCKED` are not early-success conditions. An absent implementation diff is also not success while the approved issue remains: record a partial or blocked outcome. A valid early exit produces the artifacts and markers for phases actually run plus one `处理总结`; skipped phases remain unmarked. Full and early completions may clean the current run directory, while partial, failed, blocked, stopped, cancelled, and paused exits retain it.
 
 ## Workspace and artifact location
 
@@ -47,6 +61,8 @@ Do not recommend a patch merely because a log line looks suspicious.
 
 Also maintain `issue-ledger.md` using [multi-issue.md](multi-issue.md). Continue targeted discovery after the first issue only while evidence stays within the incident boundary. Merge duplicate symptoms and record independent candidates instead of forcing all evidence into one root cause.
 
+Before starting diagnosis, apply [Early-exit rules](#early-exit-rules). If no credible issue remains, finalize the investigation artifacts and exit; do not dispatch a diagnostician or proceed because `debug` nominally lists later stages.
+
 ## 2. Diagnosis
 
 Use an independent diagnosis agent when available. It must read the incident input and `evidence.md`, inspect relevant source as needed, and make no edits.
@@ -67,6 +83,8 @@ For multiple issues, these top-level markers may use `REPAIR_TYPE: MIXED`, `CONF
 
 Diagnose and classify every issue in `issue-ledger.md`. A full diagnosis may be complete when some issues are explicitly `BLOCKED`, `DEFERRED`, `DUPLICATE`, or `NOT_A_DEFECT`, but each such status needs evidence and a reason.
 
+In `debug` or `repair`, if diagnosis leaves no approved, actionable repair for this run, apply [Early-exit rules](#early-exit-rules) and exit after recording the diagnosis. A standalone `diagnose` instead completes at its normal scope boundary. A repair menu is unnecessary when there are no eligible repairs. If a user explicitly chooses not to repair, record the selection and exit without implementation or review.
+
 Consider expert escalation when confidence is low, minimal versus structural is unresolved, the issue crosses multiple modules, it involves concurrency/state machines/complex data models, or the same repair direction has failed twice. Start from the diagnosis default, `gpt-5.6-sol` with `medium` effort. A stronger model, effort, or compute mode follows the authorization contract in [confirmation.md](confirmation.md), including in automatic mode. The expert returns `PROCEED` or `RETURN_TO_DIAGNOSIS`; it does not edit source. Do not implement while it recommends returning to diagnosis.
 
 ## 3. Implementation
@@ -86,7 +104,9 @@ The writer must:
 - avoid opportunistic cleanup and unrelated formatting;
 - follow repository-specific environment and commit rules.
 
-Produce `implementation.md` containing selected issue IDs, per-issue or shared-direction attempt numbers, files changed, behavioral differences, deviations from diagnosis, tests added, and `IMPLEMENTATION_STATUS: COMPLETE | PARTIAL | BLOCKED`.
+Produce `implementation.md` containing selected issue IDs, per-issue or shared-direction attempt numbers, files changed, behavioral differences, deviations from diagnosis, tests added, and `IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED`.
+
+If the writer finds that the approved repair may already be present, use `IMPLEMENTATION_STATUS: NO_CHANGE` and record why. Proceed to focused verification of the original invariant; only a passing result permits `EARLY_EXIT_REASON: CHANGE_ALREADY_PRESENT`. If the check fails or cannot distinguish the diagnosis from a pre-existing or environmental failure, end partial or blocked rather than treating the absent diff as success. Independent review is unnecessary when the resolved comparison confirms that this run made no source change.
 
 ## 4. Verification
 
@@ -141,7 +161,7 @@ For `debug` or `repair`, if review fails and the total implementation-attempt li
 
 ## Completion summary
 
-After entry, treat the summary as the incident's single workflow-exit hook. Immediately before the run exits, the user-facing exit response must contain exactly one distinct Markdown section headed exactly `处理总结`. An exit occurs when the selected `debug`, `diagnose`, `repair`, or `review` scope completes, or when the run ends partial, failed, blocked with no permitted progress, explicitly stopped, or cancelled. This applies in both automatic and single-step modes whether or not any file changed.
+After entry, treat the summary as the incident's single workflow-exit hook. Immediately before the run exits, the user-facing exit response must contain exactly one distinct Markdown section headed exactly `处理总结`. An exit occurs when the selected `debug`, `diagnose`, `repair`, or `review` scope completes, an early-exit rule is satisfied, or when the run ends partial, failed, blocked with no permitted progress, explicitly stopped, or cancelled. This applies in both automatic and single-step modes whether or not any file changed.
 
 Do not emit `处理总结` at entry confirmation, a phase transition checkpoint, a repair-selection or Agent-upgrade menu, a routine progress response, or a resumable pause awaiting the next confirmation. Those are intermediate workflow turns even if the client renders them as a completed assistant response. Emit the section only once, when the overall incident run actually exits. A later resume continues the same unsummarized run; if a paused run is later stopped or cancelled instead, emit the summary at that exit. Entry option **Codex 原生处理** disables this workflow and continues under the default Codex workflow, so it never starts this contract.
 
@@ -149,7 +169,7 @@ The summary must appear in the workflow-exit response itself; an artifact, comme
 
 Use these visible labels under the section. Write `无` only when absence is confirmed, `未确认` plus the reason when evidence is insufficient, and `不适用` when the field does not apply; never use `无` to hide an unfinished check:
 
-- `运行结果` — mode and exit state: completed, partial, failed, blocked, stopped, or cancelled;
+- `运行结果` — mode and exit state: completed (including valid early completion), partial, failed, blocked, stopped, or cancelled; identify the early-exit reason when applicable;
 - `发现的问题` — what was observed and the issue IDs or shared root-cause groups it represents; when multiple issues exist, separate fixed, failed/blocked, deferred, duplicate, and not-a-defect IDs;
 - `根因` — the confirmed causal chain and violated invariant;
 - `修改状态` — exactly `已修改`, `部分修改`, or `未修改`, referring only to changes made by this workflow run; list the principal files or components changed, or state why no modification was made without counting pre-existing user changes;
@@ -164,7 +184,7 @@ For multiple selected issues, group details by issue ID when their outcomes diff
 
 ### Run artifact cleanup
 
-Cleanup is part of a normal `RUN_CONTROL: AUTO` or `RUN_CONTROL: STEP` completion, after every required result has been consumed and the complete `处理总结` has been synthesized in memory, but before sending the workflow-exit response. It does not run for partial, failed, blocked, stopped, cancelled, or paused exits. If no run artifacts were created, report cleanup as not applicable.
+Cleanup is part of a normal or early `RUN_CONTROL: AUTO` or `RUN_CONTROL: STEP` completion, after every required result has been consumed and the complete `处理总结` has been synthesized in memory, but before sending the workflow-exit response. It does not run for partial, failed, blocked, stopped, cancelled, or paused exits. If no run artifacts were created, report cleanup as not applicable.
 
 Invoke `scripts/cleanup-run-artifacts.sh` with the explicit recorded `ARTIFACT_ROOT` and `RUN_ARTIFACT_DIR`. The script must validate that both paths are absolute existing directories, neither target is a symbolic link or broad root, and the run directory is exactly one direct child of `<ARTIFACT_ROOT>/multi-agent-incident-resolution/`. Never replace these arguments with a glob, unresolved environment variable, current directory, workspace root, shared namespace directory, or inferred path. The script removes the current run directory and prunes the skill namespace directory only when it becomes empty; it never removes `ARTIFACT_ROOT`.
 

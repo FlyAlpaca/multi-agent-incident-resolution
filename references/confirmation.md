@@ -23,8 +23,8 @@ This section is the only source of the entry menu for an incident. Render it exa
 
 Before taking workflow actions, present these three choices in simplified Chinese:
 
-1. **自动全流程** — 在选定的 `debug`、`diagnose`、`repair` 或 `review` 范围内持续执行，直到正常完成、命中停止条件、需要批准高于默认值的 Agent 升级，或到达高影响操作边界；正常完成后仅自动清理本次运行的中间工件目录。
-2. **单步确认** — 每次只执行一个阶段或一批已批准的 Agent，转换到下一阶段前等待确认；正常完成后同样仅自动清理本次运行的中间工件目录。
+1. **自动全流程** — 在选定的 `debug`、`diagnose`、`repair` 或 `review` 范围内持续执行，直到完整或提前正常完成、命中停止条件、需要批准高于默认值的 Agent 升级，或到达高影响操作边界；完成后仅自动清理本次运行的中间工件目录。
+2. **单步确认** — 每次只执行一个阶段或一批已批准的 Agent，转换到下一阶段前等待确认；完整或提前正常完成后同样仅自动清理本次运行的中间工件目录。
 3. **Codex 原生处理** — 停用本 Skill 工作流，并使用默认 Codex 工作流继续处理原请求；保留用户原有的范围与授权，不再应用本 Skill 的工件、阶段、Agent 路由、菜单或处理总结协议。
 
 The visible option label is only **Codex 原生处理**. Its operational semantics are both: disable this skill workflow, then continue the same request with the default Codex workflow. Do not expose the internal English instruction as a label, alias, parenthetical, or additional choice.
@@ -35,7 +35,7 @@ Do not persist the selection globally. Keep it only for the current incident. If
 
 ## Automatic full-flow mode
 
-Proceed through the selected workflow scope without routine stage prompts. Still stop for:
+Proceed through the selected workflow scope without routine stage prompts. End early when an applicable early-exit rule in [workflow.md](workflow.md#early-exit-rules) is satisfied; an early-exit result is terminal, not a new confirmation prompt, and skipped phases must not start. Still pause or stop for:
 
 - a tool or runtime approval required by the client;
 - an action requiring new authority under the skill's high-impact boundary;
@@ -49,7 +49,7 @@ When diagnosis finds repair choices, automatic mode pauses and presents the numb
 
 Both run-control modes pause before an Agent upgrade above the role defaults defined in `SKILL.md`, unless the user has already explicitly authorized that exact role and configuration for this incident. A general preference for quality, escalation, automatic execution, or a model family is not exact authorization.
 
-Normal completion of either mode includes [run artifact cleanup](workflow.md#run-artifact-cleanup). Entry selection authorizes only deletion of the validated current run directory after scope completion—not shared roots, other runs, source/runtime data, user logs, or artifacts from a non-normal exit.
+Full or early completion in either mode includes [run artifact cleanup](workflow.md#run-artifact-cleanup). Entry selection authorizes only deletion of the validated current run directory after scope completion—not shared roots, other runs, source/runtime data, user logs, or artifacts from any other exit state.
 
 ## Subagent routing disclosure
 
@@ -94,6 +94,8 @@ Before each phase transition, Agent switch, or parallel Agent batch, show one co
 - whether the next phase is read-only, validates locally, or may write;
 - intended files, commands, or mutation scope when known;
 - current risks, unresolved assumptions, and relevant stop conditions.
+
+When an early-exit rule applies, do not show a checkpoint for the skipped stage. Record the terminal markers and send the single workflow-exit summary. In single-step mode, confirmation of the completed phase does not authorize work removed by that rule.
 
 Immediately before the single numbered choice set, describe the next executor in concise prose rather than a table. Apply the shared routing-disclosure contract:
 
