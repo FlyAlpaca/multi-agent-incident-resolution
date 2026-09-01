@@ -20,47 +20,11 @@ Before delegating, record the incident input and workspace root. Every phase mus
 
 Apply the selected run-control mode from [confirmation.md](confirmation.md). In **单步确认** mode, stop before stages 1-5 and before every Agent switch or parallel Agent batch; present the required checkpoint and wait. A phase terminal marker does not authorize the next phase.
 
-## Subagent liveness and result visibility
+## Subagent state, liveness and result visibility
 
-Choose a generous initial wait and relaxed health-check cadence from the task's dependencies and expected milestones. Broad searches, installations, builds, integration tests, and cross-module diagnosis need longer intervals than focused lookups. The coordinator's own polling follows the same schedule: never busy-poll or shorten an interval because the parent view is quiet. An interval is an observation schedule, not a deadline. A single no-progress window may be extended up to 1800 seconds (30 minutes); this is the maximum observation window before a full health check and checkpoint, not an automatic cancellation deadline.
-
-Before dispatch, create the complete ledger row defined in [artifacts.md](artifacts.md), including one task-scoped path: `<RUN_ARTIFACT_DIR>/.agent-progress/<stable-agent-id>.activity`. The subagent is the only writer and appends one semantic record for each high-level step start, transition, and completion:
-
-```text
-seq=<positive-integer> timestamp=<RFC3339-UTC> state=<starting|working|blocked|finishing|completed|cancelled> step=<short-token> milestone=<start|transition|completion> blocker=<none|short-redacted-token>
-```
-
-Use this lifecycle coupling:
-
-| Lifecycle `state` | Event `milestone` | Valid use | `blocker` rule |
-|---|---|---|---|
-| `starting` | `start` | First record for a dispatch | `none` |
-| `working` | `start`, `transition`, or `completion` | Active work | `none` or a concise advisory token |
-| `blocked` | `transition` | Transient blocked state that may recover | A concise blocker is required |
-| `blocked` | `completion` | Terminal blocked result | A concise blocker is required |
-| `finishing` | `transition` | Optional pre-terminal finishing transition | `none` |
-| `completed` | `completion` | Terminal successful result | `none` |
-| `cancelled` | `completion` | Terminal cancellation result | `none` or a concise cancellation reason |
-
-`step` is a bounded free token, not an enum. `seq` starts at `1` and increases by one; the subagent writes the RFC3339 UTC `timestamp`. Reject unknown or duplicate fields, control characters, oversized or unterminated records, malformed timestamps, and sequence errors. Records contain no commands, raw output, reasoning traces, credentials, or low-level counters; detailed evidence belongs in result artifacts. Do not append after a terminal record.
-
-The dispatch ledger's record-count and byte allowances protect channel integrity; they are not work limits, timeouts, or stall evidence. Never truncate or rotate the file. Update allowances prospectively if authorized scope expands.
-
-For each check, retain the last validated byte offset and sequence and read only new complete lines. Parse as data—never shell evaluation. An advancing valid sequence is a freshness signal; mtime or timestamp age alone is not. A missing, replaced, shrunk, malformed, out-of-order, oversized, or post-terminal file is an invalid signal to record and investigate, not proof of a stall.
-
-When a subagent has not returned by the next observation point:
-
-1. inspect the Agent state through the available agent-status/listing mechanism;
-2. inspect all assigned signals: messages, validated activity records, run artifacts or relevant diffs, and test/process activity;
-3. when state is ambiguous, send a non-interrupting request for a concise checkpoint: current high-level step, last completed milestone, blocker if any, and revised expectation;
-4. extend the wait whenever the Agent is running, answers usefully, or any assigned signal shows semantic progress.
-
-Any semantic progress resets the no-progress window and requires continued waiting. When the no-progress window reaches 1800 seconds (30 minutes), perform a full check across all assigned signals and obtain a non-interrupting checkpoint before considering interruption. If the Agent is still running or has a credible completion path, continue waiting with a new task-specific window; the 30-minute limit applies to each no-progress window. Interrupt only when the repeated checks remain negative, the checkpoint is ineffective, and no credible completion path remains.
-
-Interrupt only for user cancellation, a safety or authority breach, a superseding task, or a demonstrated stall: repeated task-specific checks find no progress across all signals, the checkpoint is ineffective, and no credible completion path remains. Record the evidence first. The activity file is never the sole verdict. Preserve useful partial results before bounded replacement work. After preserving and relaying a terminal or interrupted result, remove only that dispatch's activity file—never another file, the `.agent-progress` directory recursively, or durable run artifacts.
+Before dispatching or monitoring a subagent, follow [the subagent state and timeout protocol](subagent-state.md) as the sole authority for task paths, state schema, write timing, liveness signals, thresholds, intervention, and terminal preservation. Resolve its task paths under the current `<RUN_ARTIFACT_DIR>` and create the dispatch-ledger record required by [artifacts.md](artifacts.md) before dispatch.
 
 After consuming a terminal result and before changing phase or exiting, relay it in visible `commentary`: canonical label and state, conclusion, strongest evidence, limitations or blockers, and effect on the next step. Apply [the routing-disclosure contract](confirmation.md#subagent-routing-disclosure). A parallel update may be compact but must distinguish every subagent and expose failures. Internal notifications, artifacts, and the final summary do not replace this relay.
-
 ## 1. Investigation
 
 Goal: establish reproducible facts without editing source.
@@ -102,7 +66,7 @@ For multiple issues, these top-level markers may use `REPAIR_TYPE: MIXED`, `CONF
 
 Diagnose and classify every issue in `issue-ledger.md`. A full diagnosis may be complete when some issues are explicitly `BLOCKED`, `DEFERRED`, `DUPLICATE`, or `NOT_A_DEFECT`, but each such status needs evidence and a reason.
 
-Consider expert escalation when confidence is low, minimal versus structural is unresolved, the issue crosses multiple modules, it involves concurrency/state machines/complex data models, or the same repair direction has failed twice. Start from the diagnosis default, `gpt-5.6-sol` with `medium` effort. Any stronger model, effort, or compute mode requires the Agent-upgrade confirmation in [confirmation.md](confirmation.md) before dispatch, including in automatic mode. The expert returns `PROCEED` or `RETURN_TO_DIAGNOSIS`; it does not edit source. Do not implement while it recommends returning to diagnosis.
+Consider expert escalation when confidence is low, minimal versus structural is unresolved, the issue crosses multiple modules, it involves concurrency/state machines/complex data models, or the same repair direction has failed twice. Start from the diagnosis default, `gpt-5.6-sol` with `medium` effort. A stronger model, effort, or compute mode follows the authorization contract in [confirmation.md](confirmation.md), including in automatic mode. The expert returns `PROCEED` or `RETURN_TO_DIAGNOSIS`; it does not edit source. Do not implement while it recommends returning to diagnosis.
 
 ## 3. Implementation
 

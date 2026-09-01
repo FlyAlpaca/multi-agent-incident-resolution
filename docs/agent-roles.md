@@ -9,7 +9,7 @@
 - **验证 Agent**：只读验证原始故障、focused test、相关回归、质量检查、复发模式和诊断残留。
 - **独立复核 Agent**：不参与实施且只读；对最终差异、证据、范围、安全、契约、测试和文档进行对抗性复核，返回 `PASS`、`FAIL` 或 `BLOCKED`。
 
-默认路由以 [SKILL.md](../SKILL.md#coordinate-subagents) 为准；它是角色默认值，不是必须创建的 Agent 数量。
+默认路由以 [SKILL.md](../SKILL.md#coordinate-agents) 为准；它是角色默认值，不是必须创建的 Agent 数量。
 
 ## 交接字段
 
@@ -20,13 +20,13 @@
 3. 当前阶段、尝试次数、已知风险和停止条件；
 4. 有界任务以及读取、写入和服务控制权限；
 5. 所需结果工件、结构化字段和终态标记；
-6. 高层里程碑、专属 activity 路径及其容量限制、初始等待、健康检查节奏和可信下一里程碑。
+6. 高层里程碑、专属 `state.md` 路径（复杂或异常任务可附 `events.jsonl`）、初始等待、健康检查节奏和可信下一里程碑。
 
 完整台账字段见 [references/artifacts.md](../references/artifacts.md)。不得在交接或工件中包含密码、令牌、连接串或未经脱敏的敏感输出。
 
 ## 运行与回显
 
-每个派发任务使用唯一的追加式 activity 文件。无进展窗口单次最多 30 分钟（1800 秒）；到达上限后必须完成多信号检查和非中断 checkpoint。协调者结合活动记录、Agent 状态与消息、结果工件、工作区差异和进程/测试信号判断健康；任何单一信号、固定超时或安静状态都不能单独证明停滞。完整 schema、读取规则、中断条件和精确清理要求见 [references/workflow.md](../references/workflow.md#subagent-liveness-and-result-visibility)。
+每个派发任务的状态字段、写入时机、存活判断、干预阈值和终态保留以 [子 Agent 状态与超时协议](../references/subagent-state.md) 为唯一权威来源；工作流只负责在切换阶段前消费并回显结果。
 
 协调者消费终态结果后，必须先在可见 `commentary` 中回显结论、关键证据、限制或阻塞及其对下一步的影响，再切换阶段。并行批次可合并回显，但必须区分每个子 Agent 且不得掩盖失败。
 
