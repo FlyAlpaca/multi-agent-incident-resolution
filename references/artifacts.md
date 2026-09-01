@@ -2,7 +2,7 @@
 
 Artifacts are concise decision records. Include exact file paths, symbols, commands, and outcomes; omit essays and repeated repository context. Never include credentials or raw secret-bearing output.
 
-Record `RUN_MODE: DEBUG | DIAGNOSE | REPAIR | REVIEW`, `RUN_CONTROL: AUTO | STEP`, `ENTRY_SELECTION_INDEX: 1 | 2`, `ARTIFACT_ROOT`, and `RUN_ARTIFACT_DIR` in the first artifact for the incident. Resolve both paths using the discovery contract in [workflow.md](workflow.md#workspace-and-artifact-location). Entry option `3` (**Codex 原生处理**) disables this workflow before a run starts, so do not create an artifact solely to record it; processing continues under the default Codex workflow. When paused, record the last completed phase and exact pending action without marking an unstarted later phase complete.
+Record `RUN_MODE: DEBUG | DIAGNOSE | REPAIR | REVIEW`, `RUN_CONTROL: AUTO | STEP`, `ENTRY_SELECTION_INDEX: 1 | 2`, `ARTIFACT_ROOT`, and `RUN_ARTIFACT_DIR` in the first artifact for the incident. Resolve both paths using the discovery and naming contract in [workflow.md](workflow.md#workspace-and-artifact-location). Entry option `3` (**Codex 原生处理**) disables this workflow before a run starts, so do not create an artifact solely to record it; processing continues under the default Codex workflow. When paused, record the last completed phase and exact pending action without marking an unstarted later phase complete.
 
 When a choice affects workflow state, record both its semantic value and the displayed option number after normalizing the user's input. The user may have replied with text; the stored number represents the numbered menu that was shown, not an input-format requirement.
 
@@ -15,7 +15,7 @@ Each record contains:
 - identity and routing: phase, role, default route, proposed and effective model/effort, canonical disclosure label, and reason;
 - assignment: bounded task, high-level steps/milestones, expected result/artifact, and canonical state path plus optional events path;
 - channel guards: any client transport limits for dispatch/result messages, kept separate from state and timeout decisions;
-- observation plan: initial wait, health-check cadence, credible next milestone, and coordinator-owned `OBSERVED_STATUS: NORMAL | STALE_CANDIDATE | FORCE_TERMINATION_ELIGIBLE`; apply the fixed thresholds from [subagent-state.md](subagent-state.md) rather than copying them into each row;
+- observation plan: initial wait, health-check cadence, credible next milestone, and coordinator-owned `OBSERVED_STATUS: NORMAL | FORCE_TERMINATION_ELIGIBLE`; apply the fixed threshold from [subagent-state.md](subagent-state.md) rather than copying it into each row;
 - decision and outcome: displayed upgrade choice/index when applicable, dispatch status, result status, terminal conclusion or blocker, and `USER_RELAY_STATUS: PENDING | RELAYED | NOT_DISPATCHED`;
 - execution lifecycle: coordinator-owned `WORKER_LIFECYCLE: ACTIVE | TERMINAL_CONFIRMED | TERMINATION_FAILED` and `TERMINAL_CONFIRMATION: SELF_REPORTED | RUNTIME_STATUS | EXPLICIT_CLOSE | EXPLICIT_INTERRUPT | UNAVAILABLE`, governed by [subagent-state.md](subagent-state.md#terminal-handling).
 
