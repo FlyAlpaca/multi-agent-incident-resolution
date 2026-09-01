@@ -21,7 +21,6 @@ Write a checkpoint after a work step completes and before starting the next one.
 - increment `CHECKPOINT_ID` monotonically;
 - mark the completed and current plan steps;
 - summarize the conclusion, blocker, and next bounded action;
-- refresh `last_activity` from the execution environment;
 - refresh `last_meaningful_progress` only when evidence, knowledge, judgment, task state, or a useful artifact changed substantively.
 
 Do not write on a timer, repeat unchanged content, batch several independently completed steps into one late checkpoint, or manufacture progress to avoid an observation threshold. Multiple related tool operations may belong to one step.
@@ -33,7 +32,7 @@ Write the complete snapshot to a sibling temporary file, validate required field
 Every new `state.md` contains at least:
 
 ```text
-STATE_VERSION: 2
+STATE_VERSION: 3
 TASK: <stable task id and short title>
 AGENT: <canonical disclosure label>
 MODEL: <exact model and effort>
@@ -50,8 +49,6 @@ PLAN:
 CURRENT_PROGRESS: <current conclusion or none yet>
 NEXT_STEP: <next bounded action or none>
 BLOCKER: <none or concise blocker>
-last_activity: <environment-derived ISO 8601 timestamp>
-last_activity_reason: <confirmed activity or lifecycle change>
 last_meaningful_progress: <environment-derived ISO 8601 timestamp>
 last_meaningful_progress_reason: <substantive change or explicit none-yet reason>
 NEEDS_COORDINATOR: YES | NO
@@ -60,7 +57,7 @@ NEEDS_USER: YES | NO
 
 Use ASCII plan markers so simple tooling can parse them. Exactly one step is current while work is running; terminal states have no current step. `CURRENT_PROGRESS` summarizes conclusions rather than duplicating the plan, and `NEXT_STEP` identifies the immediate action rather than another full plan.
 
-At initialization, set `CHECKPOINT_ID: 0`, persist the initial plan, and use an environment-derived start time for both timestamp fields. State explicitly that no meaningful progress is confirmed yet; initialization and plan creation are not meaningful progress.
+At initialization, set `CHECKPOINT_ID: 0`, persist the initial plan, and set `last_meaningful_progress` from the environment-derived start time. State explicitly that no meaningful progress is confirmed yet; initialization and plan creation are not meaningful progress.
 
 Add state-specific detail when applicable:
 
@@ -70,26 +67,24 @@ Add state-specific detail when applicable:
 - long operation: operation, reason, and defensible estimate;
 - `FAILED` or `CANCELLED`: cause, retained evidence, state at termination, and follow-up recommendation.
 
-For compatibility, coordinators may read `STATE_VERSION: 1`, `last_activity_summary`, and `last_meaningful_progress_summary`. New writes use version 2 and the `*_reason` fields. Do not invent missing historical values during migration.
+For compatibility, coordinators may read `STATE_VERSION: 1 | 2`, including any legacy `*_summary` fields they contain. New writes use version 3 and `last_meaningful_progress_reason`; do not invent missing historical values during migration.
 
-## Activity and meaningful progress
+## Meaningful progress and observation
 
-Keep the timestamps independent:
+`last_meaningful_progress` is the only subagent-owned timestamp used to measure progress freshness. Keep it and its reason in the atomic `state.md` snapshot:
 
-- **Activity** is externally confirmable task activity, such as a new relevant tool result, diagnostic operation, test start or completion, source inspection, completed work step, or lifecycle change.
 - **Meaningful progress** is a substantive change in evidence, knowledge, judgment, task state, or useful output, such as narrowing the scope, validating or rejecting a key hypothesis, establishing a causal link, completing an approved edit, or validating it.
 
-Activity does not imply progress. Repeated reads or commands, identical failures, inconclusive browsing, waiting, and state-only writes never refresh `last_meaningful_progress`. A completed step that produced only a negative or unchanged result may still update the plan, checkpoint, and activity timestamp, while preserving the prior meaningful-progress timestamp and reason.
+Repeated reads or commands, identical failures, inconclusive browsing, waiting, and state-only writes never refresh `last_meaningful_progress`. A completed step that produced only a negative or unchanged result may update the plan and checkpoint while preserving the prior meaningful-progress timestamp and reason.
 
 ## Coordinator observation and intervention
 
-Choose the initial wait and health-check cadence from expected milestones and dependencies. The cadence controls coordinator observation, not subagent writes or task deadlines. At a health check, combine protocol timestamps with available Agent status/messages, `result.md`, relevant diffs or artifacts, and process/test signals. Never use file mtime as Activity or Meaningful Progress.
+Choose the initial wait and health-check cadence from expected milestones and dependencies. The cadence controls coordinator observation, not subagent writes or task deadlines. At a health check, use `last_meaningful_progress` from `state.md` as the sole clock for the no-progress threshold, and interpret it with available Agent status/messages, `result.md`, relevant diffs or artifacts, and process/test signals. Never use file mtime as meaningful progress.
 
 Record the coordinator-owned `OBSERVED_STATUS` in the dispatch ledger:
 
 1. `NORMAL` by default.
-2. `STALE_CANDIDATE` after more than 30 minutes without Activity. This triggers investigation, not termination.
-3. `FORCE_TERMINATION_ELIGIBLE` after more than 60 minutes without Meaningful Progress. This permits a termination decision only after the final assessment below.
+2. `FORCE_TERMINATION_ELIGIBLE` after more than 60 minutes without meaningful progress. This permits a termination decision only after the final assessment below.
 
 Do not overwrite the subagent's lifecycle `STATUS` with an observed status. Do not treat a documented long-running test, build, analysis, data operation, network request, external wait, or reasonable `WAITING`, `BLOCKED`, or `NEED_INPUT` condition as a stall solely because a threshold elapsed.
 
