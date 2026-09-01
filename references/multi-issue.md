@@ -31,6 +31,8 @@ Diagnosis must classify every issue as one of:
 
 For each `REPAIRABLE` issue, record `MINIMAL` or `STRUCTURAL`, confidence, blast radius, dependencies, proposed patch, validation, and `REPAIR_APPROVED: YES | NO`. Shared-root-cause issues may use one repair proposal, but retain per-issue acceptance tests.
 
+Before transitioning beyond investigation or diagnosis, apply the reason, scope, and evidence requirements in [the early-exit rules](workflow.md#early-exit-rules). A `NEEDS_DECISION` or `BLOCKED` candidate is not an early-success result; preserve blocked and deferred findings in the ledger and summary.
+
 ## Build the repair recommendation
 
 Before any implementation, present a concise issue table in simplified Chinese with:
@@ -41,6 +43,8 @@ Before any implementation, present a concise issue table in simplified Chinese w
 - repairability and repair type;
 - expected files or subsystem blast radius;
 - whether it is included in the recommended set and why.
+
+Do not present a repair menu when there are zero eligible `REPAIRABLE` issues. If the user chooses none, record `SELECTED_ISSUES: NONE` and apply the corresponding early-exit rule; do not create an implementation checkpoint.
 
 Sort by dependency first, then severity and confidence. Show counts for discovered, repairable, recommended, blocked, and deferred issues. If the ledger is long, keep the choice prompt compact but still show every eligible issue ID and link or point to the full ledger; never hide issues from **全部修复**. Make the exact difference between recommended and all eligible sets explicit.
 

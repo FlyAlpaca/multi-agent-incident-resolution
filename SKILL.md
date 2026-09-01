@@ -27,6 +27,8 @@ Read only the references required for that scope:
 - [artifacts.md](references/artifacts.md): before creating, validating, or resuming run artifacts;
 - [subagent-state.md](references/subagent-state.md): before dispatching or monitoring a subagent.
 
+Before each stage transition, apply the authoritative [early-exit rules](references/workflow.md#early-exit-rules). Do not dispatch work or emit markers for a stage that those rules skip.
+
 ## Establish the evidence and safety envelope
 
 Before mutation:
@@ -70,4 +72,4 @@ Allow at most two implementation attempts per selected issue or shared repair di
 
 The applicable completion rules and terminal markers in [workflow.md](references/workflow.md) and [artifacts.md](references/artifacts.md) are authoritative. An implemented repair is complete only when selected issues have supported diagnoses, implementation matches scope, focused and combined checks pass, recurrence findings and diagnostic residue are resolved or explicitly triaged, and permitted independent review returns `PASS`.
 
-On workflow exit, emit exactly one `处理总结` section using [the completion contract](references/workflow.md#completion-summary). After normal completion, clean only the validated current `RUN_ARTIFACT_DIR` with `scripts/cleanup-run-artifacts.sh`; preserve artifacts for partial, failed, blocked, stopped, cancelled, or paused runs.
+On workflow exit, emit exactly one `处理总结` section using [the completion contract](references/workflow.md#completion-summary). A valid early exit is a completed run, but its exact reason must remain distinguishable from partial or blocked work. After full or early completion, clean only the validated current `RUN_ARTIFACT_DIR` with `scripts/cleanup-run-artifacts.sh`; preserve artifacts for partial, failed, blocked, stopped, cancelled, or paused runs.
