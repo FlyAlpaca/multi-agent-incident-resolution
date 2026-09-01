@@ -23,7 +23,7 @@ This section is the only source of the entry menu for an incident. Render it exa
 
 Before taking workflow actions, present these three choices in simplified Chinese:
 
-1. **自动全流程** — execute the selected `debug`, `diagnose`, `repair`, or `review` scope continuously until completion, a stop condition, an Agent upgrade above the role default, or a high-impact approval boundary; after normal completion, automatically remove only this run's intermediate-artifact directory.
+1. **自动全流程** — execute the selected `debug`, `diagnose`, `repair`, or `review` scope continuously until completion, a stop condition, an unapproved Agent upgrade above the role default, or a high-impact approval boundary; after normal completion, automatically remove only this run's intermediate-artifact directory.
 2. **单步确认** — execute one phase or one approved Agent batch at a time and wait for confirmation before the next transition; normal completion also automatically removes only this run's intermediate-artifact directory.
 3. **不进入流程** — do not start this workflow. If the user also requested a narrower action that does not rely on the workflow, perform only that action within its existing authorization; otherwise stop.
 
@@ -45,7 +45,7 @@ Automatic mode is not blanket authorization for deployment, destructive operatio
 
 When diagnosis finds repair choices, automatic mode pauses and presents the numbered repair menu defined in [multi-issue.md](multi-issue.md) unless the user preselected a repair set in the activating request. Repair selection is a product/scope decision, not a routine stage prompt.
 
-Both run-control modes pause before every Agent upgrade above the role defaults defined in `SKILL.md`. A general automatic-mode or single-step selection is not approval for a stronger model, higher effort, or higher-compute mode.
+Both run-control modes pause before an Agent upgrade above the role defaults defined in `SKILL.md`, unless the user has already explicitly authorized that exact role and configuration for this incident. A general preference for quality, escalation, automatic execution, or a model family is not exact authorization.
 
 Normal completion of either mode includes [run artifact cleanup](workflow.md#run-artifact-cleanup). Entry selection authorizes only deletion of the validated current run directory after scope completion—not shared roots, other runs, source/runtime data, user logs, or artifacts from a non-normal exit.
 
@@ -59,7 +59,7 @@ As soon as a route is selected, create and retain one canonical label with the d
 
 Before dispatching, emit a visible `commentary` update using `下一步执行：<规范披露标签>；任务：<有界职责>`. For a parallel batch, give one concise sentence per subagent with its own canonical label and bounded task. Do not dispatch until every planned subagent has a canonical label and bounded task.
 
-Record the complete dispatch fields required by [artifacts.md](artifacts.md). They include the task plan, expected artifact, activity-channel limits, and task-specific observation schedule; channel limits are not work limits or timeouts.
+Record the complete dispatch fields required by [artifacts.md](artifacts.md). They include the task plan, canonical `state.md` path, optional `events.jsonl` path when justified, and task-specific observation schedule; transport/channel limits are not work limits or timeout decisions.
 
 After dispatch, paste the same canonical label verbatim into every user-facing reference to that specific planned, running, substituted, failed, cancelled, blocked, or completed subagent. Never shorten it to bare wording such as `验证 Agent` or `独立 Reviewer`, even when the route appeared in an earlier update. This applies to progress reports, terminal-result relays, descriptions of a planned next Agent, and the final summary. A substitution creates a new label that must be disclosed before execution; an upgrade still requires the separate confirmation below. Generic descriptions of a workflow stage or role catalog that do not refer to an actual subagent execution are exempt.
 
@@ -76,7 +76,7 @@ Valid: `验证 Agent（模型：gpt-5.6-luna；推理强度：max）正在运行
 
 ## Agent upgrade confirmation
 
-Before every Agent upgrade, show the role, default model/effort, proposed model/effort or compute mode, reason, expected benefit, and additional cost/latency risk. Then present this numbered menu and wait, even when the user requested the upgrade earlier:
+When an upgrade lacks exact prior authorization, show the role, default model/effort, proposed model/effort or compute mode, reason, expected benefit, and additional cost/latency risk. Then present this numbered menu and wait:
 
 1. **确认升级** — authorize only the displayed Agent role and configuration and, in single-step mode, execute the displayed phase or batch;
 2. **保持默认** — use the role's default configuration and, in single-step mode, execute the displayed phase or batch if meaningful progress remains possible;
@@ -88,7 +88,7 @@ If option `3` is selected, present one secondary prompt. With interactive input,
 2. **结束流程** — exit the incident and emit the required summary;
 3. **其他 / 自定义** — choose another model, effort, constraint, or routing approach; textual fallback only.
 
-Keep the same numbers if the answer is ambiguous. A prior exact model-and-effort request may populate the proposed configuration but does not satisfy this prompt. Do not treat a generic preference for quality, automatic execution, or escalation as approval.
+Keep the same numbers if the answer is ambiguous. Record an exact prior authorization in the dispatch ledger and proceed without duplicating this prompt; a broader or different configuration still requires confirmation.
 
 ## Stage-by-stage confirmation mode
 
@@ -106,11 +106,11 @@ Immediately before the single numbered choice set, describe the next executor in
 - when delegating one subagent, write `下一步执行：<规范披露标签>；任务：<有界职责>`;
 - for a parallel read-only batch, give one short sentence per subagent using the same canonical label and bounded task.
 
-Do not show the confirmation choices or start the phase until every planned subagent has a canonical label, exact model, reasoning effort, and bounded task. If execution changes between the current Agent and a subagent, or any displayed subagent, model, effort, or task changes before execution, create or revise the affected canonical label, present a revised checkpoint, and wait again. A model above the role default still requires the separate Agent-upgrade menu; the routing disclosure describes the plan but never authorizes an upgrade.
+Do not show the confirmation choices or start the phase until every planned subagent has a canonical label, exact model, reasoning effort, and bounded task. If execution changes between the current Agent and a subagent, or any displayed subagent, model, effort, or task changes before execution, create or revise the affected canonical label, present a revised checkpoint, and wait again. A model above the role default still requires exact authorization under the Agent-upgrade contract; routing disclosure alone never authorizes it.
 
 Before implementation, include the issue table and use the single-step combined repair menu from [multi-issue.md](multi-issue.md) when repair selection is pending. That menu replaces the generic stage-action menu and confirms both the selected issue IDs and entry into implementation. For a structural, multi-issue, dependency-ordered, contract-changing, migration, concurrency, lifecycle, state-machine, or otherwise high-blast-radius repair, expand this checkpoint with the ordered implementation sequence, dependencies, affected contracts or data, rollback approach, per-issue checks, and combined regression checks. Do not create a separate planning phase or `plan.md` merely to repeat diagnosis and implementation information.
 
-If the implementation proposes an Agent upgrade while repair selection is pending, resolve the repair set first using its numbered menu as a scope decision only. Then show a revised implementation checkpoint with the Agent-upgrade menu; options `1` or `2` authorize the displayed implementation transition. Do not write source between those prompts. If the repair set was already selected and no upgrade is proposed, use the generic stage-action menu below.
+If the implementation proposes an upgrade that lacks exact prior authorization while repair selection is pending, resolve the repair set first using its numbered menu as a scope decision only. Then show a revised implementation checkpoint with the Agent-upgrade menu; options `1` or `2` authorize the displayed implementation transition. Do not write source between those prompts. If the repair set was already selected and no unapproved upgrade is proposed, use the generic stage-action menu below.
 
 For a checkpoint not governed by the combined repair menu or Agent-upgrade menu, offer these actions as its only numbered list and wait:
 
@@ -126,7 +126,7 @@ If option `3` is selected, present one secondary prompt. With interactive input,
 
 Confirmation authorizes only the checkpoint just shown. It does not authorize later phases or materially broader actions.
 
-If any non-implementation phase proposes an Agent upgrade, use the Agent-upgrade menu instead of the generic stage-action menu. In single-step mode, upgrade options `1` and `2` also authorize the displayed phase or batch, preventing a duplicate confirmation. Selecting **更多操作** authorizes nothing until its secondary prompt is resolved.
+If any non-implementation phase proposes an upgrade that lacks exact prior authorization, use the Agent-upgrade menu instead of the generic stage-action menu. In single-step mode, upgrade options `1` and `2` also authorize the displayed phase or batch, preventing a duplicate confirmation. Selecting **更多操作** authorizes nothing until its secondary prompt is resolved.
 
 Do not ask separately for each member of a safe parallel, read-only Agent batch. Present the batch's roles, purpose, and concurrency once, then use one packaged confirmation. Never package write-capable Agents together; implementation remains a single-writer phase.
 

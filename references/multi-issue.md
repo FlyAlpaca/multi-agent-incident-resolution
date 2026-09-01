@@ -81,7 +81,7 @@ In single-step mode, include the implementation checkpoint details and present e
 
 Use the same secondary menu defined above. A custom result may select or exclude issue IDs, change constraints, or request more diagnosis; after its details are resolved, present a revised combined checkpoint.
 
-This combined menu replaces the generic confirmation menu for that checkpoint. Do not display a second numbered list containing “确认 / 取消 / 修改 / 暂停”. If an Agent upgrade is proposed, this menu selects scope only; follow the two-prompt composition rule in [confirmation.md](confirmation.md), and do not write source until the upgrade menu is resolved.
+This combined menu replaces the generic confirmation menu for that checkpoint. Do not display a second numbered list containing “确认 / 取消 / 修改 / 暂停”. If an upgrade lacks exact prior authorization, this menu selects scope only; follow the two-prompt composition rule in [confirmation.md](confirmation.md), and do not write source until the upgrade menu is resolved.
 
 When only one repairable issue exists in automatic mode, use this compact menu:
 
@@ -95,7 +95,7 @@ For one repairable issue in single-step mode, use:
 1. **修复此问题并进入实施（推荐）**
 2. **更多操作**
 
-For either single-issue menu, option `2` opens the same secondary menu defined above. This also replaces the generic stage-action menu. Apply the same separate Agent-upgrade prompt rule when an upgrade is proposed.
+For either single-issue menu, option `2` opens the same secondary menu defined above. This also replaces the generic stage-action menu. Apply the same separate Agent-upgrade prompt rule when an upgrade lacks exact prior authorization.
 
 ## Implement and verify the selected set
 
