@@ -1,6 +1,6 @@
 ---
 name: multi-agent-incident-resolution
-description: Coordinate evidence-driven investigation, diagnosis, approved repair, verification, and independent review for complex incidents, regressions, multi-issue failures, or explicitly requested diagnose/repair/review workflows. Do not use for routine single-defect fixes or ordinary feature work that does not benefit from staged multi-agent coordination.
+description: Coordinate evidence-driven investigation, diagnosis, approved repair, verification, and independent review for complex incidents, regressions, multi-issue failures, or explicitly requested multi-agent diagnose/repair/review workflows. Do not use for routine single-defect fixes or ordinary feature work that does not benefit from staged coordination.
 ---
 
 # Multi-Agent Incident Resolution
@@ -9,7 +9,7 @@ Resolve incidents without confusing symptoms with root causes or letting repairs
 
 ## Enter and route the workflow
 
-At the first activation for an incident, use the entry menu in [references/confirmation.md](references/confirmation.md), unless the user already selected **自动全流程**, **单步确认**, or **不进入流程** unambiguously. Before entry is resolved, do not inspect, delegate, create artifacts, or edit. The choice applies only to the current incident.
+At the first activation for an incident, use the entry menu in [references/confirmation.md](references/confirmation.md), unless the user already selected **自动全流程**, **单步确认**, or **Codex 原生处理** unambiguously. Selecting **Codex 原生处理** disables this skill workflow and continues the original request under the default Codex workflow. Before entry is resolved, do not inspect, delegate, create artifacts, or edit. The choice applies only to the current incident.
 
 After entry, infer the narrowest authorized scope:
 
@@ -54,9 +54,10 @@ The current Agent remains coordinator and owns user gates, incident scope, artif
 | Verifier | Focused, regression, quality, and recurrence checks | `gpt-5.6-luna/max` | read-only |
 | Independent reviewer | Adversarial review of final diff and evidence | `gpt-5.6-sol/medium` | read-only |
 
+- `read-only` means no project-source edits; all roles may write their assigned run artifacts, and verification may create repository-prescribed test/build outputs.
 - Use only roles that add value. Parallelize independent read-only work; keep implementation under one writer, and never let a reviewer fix its own findings.
 - Give every subagent the incident input, repository rules, workspace snapshot, run directory, bounded task, explicit authority boundary, and its assigned state/result paths.
-- Apply the routing disclosure and upgrade rules in [confirmation.md](references/confirmation.md) and the state protocol in [subagent-state.md](references/subagent-state.md). Wait for requested agents, reconcile contradictions, and relay every terminal result before changing phase.
+- Apply the routing disclosure and upgrade rules in [confirmation.md](references/confirmation.md) and the state, relay, and terminal-handoff gates in [subagent-state.md](references/subagent-state.md). Wait for requested agents and reconcile contradictions before changing phase.
 - Treat the routes above as defaults. An equivalent or lower available route may substitute with disclosure. A higher-cost route needs confirmation unless the user has already explicitly authorized that exact role and configuration for this incident.
 
 ## Bound repair effort

@@ -27,7 +27,7 @@
 
 所有 Agent 读取同一事件输入、仓库规则与运行目录。实施阶段只有一个源码写入者；不得把凭据、令牌或未脱敏的敏感输出写入工件。
 
-子 Agent 通常独占写入任务 `state.md`，协调者在派发台账维护观察状态；存活判断和终态保留以 [状态与超时协议](references/subagent-state.md) 为唯一权威来源。路由标签与升级授权以 [确认协议](references/confirmation.md) 为唯一权威来源。整个流程正常完成时仅清理当前已校验的 `RUN_ARTIFACT_DIR`，其他退出状态保留工件。
+子 Agent 状态与终态交接以 [状态与超时协议](references/subagent-state.md) 为唯一权威来源，路由标签与升级授权以 [确认协议](references/confirmation.md) 为唯一权威来源。整个流程正常完成时仅清理当前已校验的 `RUN_ARTIFACT_DIR`，其他退出状态保留工件。
 
 ## 全局 Skill 同步
 
