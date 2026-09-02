@@ -23,13 +23,13 @@
 - 调查、实施、验证、独立复核、运行健康和终态回显统一使用 [工作流协议](references/workflow.md)。
 - 多问题分诊和修复集合选择统一使用 [多问题协议](references/multi-issue.md)。
 - 运行元数据、派发台账和终态标记统一使用 [工件协议](references/artifacts.md)。
-- 子 Agent 的 Work Step、Checkpoint、生命周期状态、停滞判断和终止后证据保留统一使用 [状态与超时协议](references/subagent-state.md)。
+- 子 Agent 的 Work Step、Checkpoint、任务状态、worker 运行时状态、停滞判断和终止后证据保留统一使用 [状态与超时协议](references/subagent-state.md)。
 
 所有 Agent 读取同一事件输入、仓库规则与运行目录。实施阶段只有一个源码写入者；不得把凭据、令牌或未脱敏的敏感输出写入工件。
 
 完整阶段链路是上限而非强制清单。提前结束原因会区分无可信问题、无可执行修复、用户未选择修复、修改已存在和审查范围为空；跳过的阶段不伪造通过标记。
 
-子 Agent 状态与终态交接以 [状态与超时协议](references/subagent-state.md) 为唯一权威来源，路由标签与升级授权以 [确认协议](references/confirmation.md) 为唯一权威来源。完整或提前正常完成时仅清理当前已校验的 `RUN_ARTIFACT_DIR`，其他退出状态保留工件。
+子 Agent 的终态交接不等于 worker 已退出：前者完成后必须立即确认运行时状态并回收仍存活的 worker。两类状态及其门禁以 [状态与超时协议](references/subagent-state.md) 为唯一权威来源，路由标签与升级授权以 [确认协议](references/confirmation.md) 为唯一权威来源。完整或提前正常完成时仅清理当前已校验的 `RUN_ARTIFACT_DIR`，其他退出状态保留工件。
 
 ## 全局 Skill 同步
 
