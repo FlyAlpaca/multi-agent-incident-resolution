@@ -10,7 +10,7 @@ tasks/<task-id>/events.jsonl
 
 The subagent is the normal writer of `state.md`. The coordinator reads it and records observation decisions in the dispatch ledger; it must not rewrite a live subagent's state. Use `events.jsonl` only when a complex or abnormal task needs an append-only diagnostic history. Do not create heartbeat, polling, or auxiliary status files.
 
-Completion is a one-way handoff. When the bounded task's acceptance criteria are met, the subagent must write its result, enter `DONE`, return the result to the coordinator, and stop. It must not continue waiting, polling, retrying, or spinning after completion. `WAITING` is only for an unresolved pre-completion condition.
+Terminal handoff is one-way. When the bounded task finishes or cannot continue without coordinator or user action, the subagent must write `result.md`, enter `DONE`, `BLOCKED`, `NEED_INPUT`, `FAILED`, or `CANCELLED`, return the result to the coordinator, and stop. It must not wait, poll, retry, or spin after a terminal handoff. `WAITING` is only for a self-resolving pre-completion condition with a concrete next observable event.
 
 ## Work plan and checkpoints
 
@@ -32,7 +32,7 @@ Write the complete snapshot to a sibling temporary file, validate required field
 Every new `state.md` contains at least:
 
 ```text
-STATE_VERSION: 3
+STATE_VERSION: 4
 TASK: <stable task id and short title>
 AGENT: <canonical disclosure label>
 MODEL: <exact model and effort>
@@ -55,19 +55,19 @@ NEEDS_COORDINATOR: YES | NO
 NEEDS_USER: YES | NO
 ```
 
-Use ASCII plan markers so simple tooling can parse them. Exactly one step is current while work is running; terminal states have no current step. `CURRENT_PROGRESS` summarizes conclusions rather than duplicating the plan, and `NEXT_STEP` identifies the immediate action rather than another full plan.
+Use ASCII plan markers so simple tooling can parse them. Exactly one step is current while work is active (`PENDING`, `RUNNING`, or `WAITING`); terminal handoff states (`BLOCKED`, `NEED_INPUT`, `DONE`, `FAILED`, or `CANCELLED`) have no current step. `CURRENT_PROGRESS` summarizes conclusions rather than duplicating the plan, and `NEXT_STEP` identifies the immediate action rather than another full plan.
 
 At initialization, set `CHECKPOINT_ID: 0`, persist the initial plan, and set `last_meaningful_progress` from the environment-derived start time. State explicitly that no meaningful progress is confirmed yet; initialization and plan creation are not meaningful progress.
 
 Add state-specific detail when applicable:
 
 - `WAITING`: exact wait condition, reason, and next observable event or defensible estimate;
-- `BLOCKED`: cause, attempted resolution, and condition needed to proceed;
-- `NEED_INPUT`: decision required, available options, and recommendation;
+- `BLOCKED`: cause, attempted resolution, condition needed to proceed, and retained evidence for terminal handoff;
+- `NEED_INPUT`: decision required, available options, recommendation, and retained evidence for terminal handoff;
 - long operation: operation, reason, and defensible estimate;
 - `FAILED` or `CANCELLED`: cause, retained evidence, state at termination, and follow-up recommendation.
 
-For compatibility, coordinators may read `STATE_VERSION: 1 | 2`, including any legacy `*_summary` fields they contain. New writes use version 3 and `last_meaningful_progress_reason`; do not invent missing historical values during migration.
+For compatibility, coordinators may read `STATE_VERSION: 1 | 2 | 3`, including any legacy `*_summary` fields they contain. In version 3 and earlier, do not assume `BLOCKED` or `NEED_INPUT` is terminal without runtime evidence. New writes use version 4 and `last_meaningful_progress_reason`; do not invent missing historical values during migration.
 
 ## Meaningful progress and observation
 
@@ -79,35 +79,36 @@ Repeated reads or commands, identical failures, inconclusive browsing, waiting, 
 
 ## Coordinator observation and intervention
 
+The coordinator is passive while a dispatched subagent is live. The dispatch assignment is the only coordinator-to-subagent message: after dispatch, do not send a progress reminder, checkpoint request, decision, follow-up task, `send_input`, or equivalent prompt, and never rewrite its live `state.md`. A runtime lifecycle stop is not a message; it is allowed only by the explicit exceptions below. This rule applies in both `AUTO` and `STEP` modes.
+
 Choose the initial wait and health-check cadence from expected milestones and dependencies. The cadence controls coordinator observation, not subagent writes or task deadlines. At a health check, use `last_meaningful_progress` from `state.md` as the sole clock for the no-progress threshold, and interpret it with available Agent status/messages, `result.md`, relevant diffs or artifacts, and process/test signals. Never use file mtime as meaningful progress.
 
 Record the coordinator-owned `OBSERVED_STATUS` in the dispatch ledger:
 
 1. `NORMAL` by default.
-2. `FORCE_TERMINATION_ELIGIBLE` after more than 60 minutes without meaningful progress. This permits a termination decision only after the final assessment below.
+2. `FORCE_TERMINATION_ELIGIBLE` only after more than 60 minutes without meaningful progress. This permits a termination decision only after the final assessment below.
 
-Do not overwrite the subagent's lifecycle `STATUS` with an observed status. Do not treat a documented long-running test, build, analysis, data operation, network request, external wait, or reasonable `WAITING`, `BLOCKED`, or `NEED_INPUT` condition as a stall solely because a threshold elapsed.
+Before that threshold, absence of a checkpoint or result, a coordinator wait timeout, low-value work, repeated identical failure, an ordinary scope concern, a missing handoff, or suspected lack of responsiveness does not permit a message, lifecycle stop, reassignment, or close. Record the observation and continue passive waiting. The only earlier lifecycle-stop exceptions are an explicit user cancellation or concrete evidence requiring an independently enforced runtime, safety, or authority stop. Execute that stop directly without first contacting the subagent.
 
-Intervene earlier when evidence already shows a low-value loop, repeated identical failures, unjustified scope expansion, an authority breach, or mostly irrelevant work. Do not wait for a threshold when safety or scope requires action.
+Do not overwrite the subagent's lifecycle `STATUS` with an observed status. Do not treat a documented long-running test, build, analysis, data operation, network request, external wait, or reasonable `WAITING` condition as a stall solely because a threshold elapsed. Handle `BLOCKED` and `NEED_INPUT` as terminal handoffs, not stall evidence.
 
-Before force termination, determine from current evidence whether:
+After the threshold, determine from current evidence whether:
 
 - a reasonable long operation or explicit wait remains active;
-- the coordinator can resolve a blocker;
-- coordinator or user input is required;
+- the runtime is inconsistent with a terminal `BLOCKED` or `NEED_INPUT` handoff;
 - the Agent is looping abnormally; and
 - a credible next direction or completion value remains.
 
-Continue, replan, pause without interruption, reassign, or use an approved route change whenever a justified path remains. Force termination is a last resort and is allowed only after the meaningful-progress threshold when no reasonable operation or wait remains, no actionable `BLOCKED` or `NEED_INPUT` condition is being ignored, and no useful path remains.
+Continue passive observation whenever a justified path remains. A live subagent may be force-terminated only as a last resort after the threshold and final assessment show that no reasonable operation or wait remains and no useful path remains. Use the runtime's supported lifecycle stop directly, including its interrupt operation when that is the available stop mechanism; do not send a preparatory or final message, and do not reassign until the runtime confirms termination. The threshold never authorizes a follow-up message or prompt.
 
-Read `state.md` for routine status instead of asking duplicate questions such as whether the Agent is alive, current progress, or time remaining. Contact the Agent only for a needed decision, conflicting evidence, abnormal or threshold state, scope change, or reassignment.
+Read `state.md` for routine status instead of asking duplicate questions such as whether the Agent is alive, current progress, or time remaining. Do not contact a live subagent for a decision, conflicting evidence, abnormal state, scope change, reassignment, or any other coordination purpose.
 
 ## Terminal handling
 
-On normal completion, atomically write `result.md` first, then atomically write the final checkpoint as terminal `state.md`. This ordering ensures that a visible terminal state always has a complete result available. A terminal state has no current plan step; record unfinished steps and limitations explicitly.
+For every terminal handoff, atomically write `result.md` first, then atomically write the final checkpoint as terminal `state.md`. This ordering ensures that a visible terminal state always has a complete result available. A terminal state has no current plan step; record unfinished steps and limitations explicitly.
 
-After observing `DONE`, consume `result.md` and terminal `state.md`, then confirm through the runtime that the dispatch is no longer running. If the runtime exposes an explicit close/reclaim operation, invoke it; if it automatically terminates completed workers, its terminal status is sufficient. Do not invent a tool name, call interruption on an already terminal worker, or keep polling after terminal status is confirmed. Record the evidence and method in the dispatch ledger as `WORKER_LIFECYCLE: TERMINAL_CONFIRMED`. If the runtime still reports the worker as running, use its supported stop operation and verify again; record `TERMINATION_FAILED` and block the phase transition only when a supported stop attempt fails or terminal state cannot be established.
+After observing `BLOCKED`, `NEED_INPUT`, `DONE`, `FAILED`, or `CANCELLED`, consume `result.md` and terminal `state.md`, then confirm through the runtime that the dispatch is no longer running. If the runtime exposes an explicit close/reclaim operation, invoke it; if it automatically terminates completed workers, its terminal status is sufficient. Do not invent a tool name, send a message, interrupt an already stopped worker, or keep polling after terminal status is confirmed. Record the evidence and method in the dispatch ledger as `WORKER_LIFECYCLE: TERMINAL_CONFIRMED`. If the runtime still reports a terminal worker as running, use its supported non-message lifecycle stop and verify again; record `TERMINATION_FAILED` and block the phase transition only when a supported stop attempt fails or terminal state cannot be established.
 
-Before an authorized interruption, preserve current state and useful evidence. After interruption, write a partial `result.md` when possible, then ensure `state.md` records `CANCELLED` or `FAILED`, the cause, state at termination, last meaningful progress, retained evidence, and recommendation. If the subagent cannot write the terminal snapshot, the coordinator may finalize it only after the task is no longer writing and must identify the coordinator-authored update.
+Before an authorized interruption, read and retain the current state and useful evidence without rewriting live task files. After the runtime confirms interruption, ensure a partial `result.md` and terminal `state.md` record `CANCELLED` or `FAILED`, the cause, state at termination, last meaningful progress, retained evidence, and recommendation. If the subagent could not write that terminal snapshot, the coordinator may finalize it only after the task is no longer writing and must identify the coordinator-authored update.
 
 Never discard partial evidence because a task ended abnormally. Use retained state, result, and artifacts to decide whether evidence is reusable or the task needs replanning, reassignment, or a route change. After consuming a terminal result, relay its canonical label, status, conclusion, strongest evidence, limitations or blocker, and effect on the next phase before transitioning.
