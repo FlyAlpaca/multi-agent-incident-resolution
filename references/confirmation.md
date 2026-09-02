@@ -61,7 +61,7 @@ As soon as a route is selected, create and retain one canonical label with the d
 
 Before dispatching, emit a visible `commentary` update using `下一步执行：<规范披露标签>；任务：<有界职责>`. For a parallel batch, give one concise sentence per subagent with its own canonical label and bounded task. Do not dispatch until every planned subagent has a canonical label and bounded task.
 
-Record the complete dispatch fields required by [artifacts.md](artifacts.md). They include the task plan, canonical `state.md` path, optional `events.jsonl` path when justified, and task-specific observation schedule; transport/channel limits are not work limits or timeout decisions.
+Record the complete dispatch fields required by [artifacts.md](artifacts.md). They include the task plan, canonical `state.md` path, optional `events.jsonl` path when justified, terminal handoff states, immediate terminal-turn exit obligation, and task-specific observation schedule; transport/channel limits are not work limits or timeout decisions.
 
 After dispatch, use the same canonical label verbatim in every user-facing reference to that actual subagent, including progress, substitution, failure, cancellation, terminal relay, planned next execution, and final summary. Label each member of a batch separately. A substitution gets a newly disclosed label; an upgrade still requires confirmation. Generic references to a stage or role catalog are exempt.
 
@@ -134,6 +134,7 @@ Within a confirmed phase, routine read-only tool calls and the stated in-scope c
 On pause or cancellation:
 
 - do not start new agents or commands;
+- on cancellation, stop active dispatched tasks through the runtime and immediately reclaim terminal workers; pause alone does not authorize a lifecycle stop;
 - do not roll back, stash, clean, or discard work unless separately authorized;
 - preserve valid artifacts;
 - report the current run-control mode, last completed phase, working-tree state, and pending next action.
