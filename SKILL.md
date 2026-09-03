@@ -11,6 +11,8 @@ Resolve incidents without confusing symptoms with root causes or letting repairs
 
 At the first activation for an incident, use the entry menu in [references/confirmation.md](references/confirmation.md), unless the user already selected **自动全流程**, **单步确认**, or **Codex 原生处理** unambiguously. Selecting **Codex 原生处理** disables this skill workflow and continues the original request under the default Codex workflow. Before entry is resolved, do not inspect, delegate, create artifacts, or edit. The choice applies only to the current incident.
 
+🔴 CHECKPOINT · 入口确认：必须先让用户从三选一中明确运行方式，未确认前不得行动；选择只对本事件有效。
+
 After entry, infer the narrowest authorized scope:
 
 - `debug`: investigate, diagnose, plan, implement, integrate when needed, verify, and review;
@@ -27,7 +29,7 @@ Read only the references required for that scope:
 - [artifacts.md](references/artifacts.md): before creating, validating, or resuming run artifacts;
 - [subagent-state.md](references/subagent-state.md): before dispatching or monitoring a subagent.
 
-Before each stage transition, apply the authoritative [early-exit rules](references/workflow.md#early-exit-rules). Do not dispatch work or emit markers for a stage that those rules skip.
+🔴 CHECKPOINT · 阶段门禁：每次阶段切换前套用 [early-exit rules](references/workflow.md#early-exit-rules)；被规则跳过的阶段不得派发工作或发出通过标记。
 
 ## Establish the evidence and safety envelope
 
@@ -76,7 +78,7 @@ The workflow uses seven roles; the implementer may expand into a pool of N paral
 
 ## Bound repair effort
 
-Local, non-destructive validation and an evidence-supported in-scope repair need no extra workflow approval beyond the selected run-control mode. Pause when a change materially expands scope, changes a public contract, conflicts with repository policy, or requires a high-impact action such as deployment, external writes, destructive deletion, history rewriting, credential changes, purchases, or production mutation without exact prior authorization.
+🔴 CHECKPOINT · 高影响边界：本地无损验证与有证据支撑的界内修复无需额外审批；但部署、外部写入、破坏性删除、改写历史、凭据变更、采购或生产变更等高影响动作，必须获得明确授权方可越过。
 
 Allow at most two implementation attempts per selected issue, shared repair direction, or pooled subtask; a subtask retry counts toward the limit of the repair direction it belongs to. Stop and report when the same direction fails twice, diagnosis remains low-confidence after targeted investigation and permitted escalation, required external state is unavailable, authority is insufficient, user changes cannot be preserved, or verification cannot distinguish the repair from a pre-existing/environmental failure. Do not hide deterministic failures with retries, longer timeouts, swallowed exceptions, or weaker tests.
 
