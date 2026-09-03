@@ -2,3 +2,4 @@ timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
 2026-09-03T14:05	3df3628	multi-agent-incident-resolution	-	77	baseline	-	9维基线评估（结构+干跑实测）	dry_run
 2026-09-03T14:20	90095aa	multi-agent-incident-resolution	77	78.8	keep	dim9	新增统一红线章节（禁止行为集中呈现）	full_test
 2026-09-03T14:35	3d5b21c	multi-agent-incident-resolution	78.8	80.0	keep	dim4	入口/阶段/高影响三处加显式 CHECKPOINT 标记	full_test
+2026-09-03T14:50	58000c5	multi-agent-incident-resolution	80.0	82.4	keep	dim3	索引层补充早退/失败模式速查表	full_test
