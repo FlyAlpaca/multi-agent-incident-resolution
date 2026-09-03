@@ -1,6 +1,10 @@
 # Workflow
 
-Use all applicable stages for `debug`, stages 1-2 for standalone `diagnose`, stages 3-5 for `repair`, and stage 5 for standalone `review`, unless an early-exit rule below applies. At `repair` entry, validate and normalize a supplied diagnosis into the required run artifacts; re-enter stages 1-2 only when it is stale or incomplete, or when later evidence invalidates the repair direction. A standalone `review` remains project-source read-only and never transitions into diagnosis or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
+Use all applicable stages for `debug`, stages 1-2 for standalone `diagnose`, stages 4-7 for `repair`, and stage 7 for standalone `review`, unless an early-exit rule below applies. At `repair` entry, validate and normalize a supplied diagnosis into the required run artifacts, resolve the repair selection, and derive the plan and `tasks.yaml` when they are missing; re-enter stages 1-3 only when the diagnosis or plan is stale or incomplete, or when later evidence invalidates the repair direction. A standalone `review` remains project-source read-only and never transitions into diagnosis, planning, or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
+
+The seven stages are: 1 Investigation, 2 Diagnosis, 3 Planning, 4 Implementation, 5 Integration, 6 Verification, and 7 Independent review. Stage 5 is conditional: it runs only when more than one implementer wrote source.
+
+Stages 2 and 3 always decide different questions—stage 2 decides what is wrong, stage 3 decides how the approved repair is executed—but they do not always run in different Agents. A minimal repair keeps planning inline in the same diagnostician; a structural or multi-task repair moves it to a dedicated planner with its own context.
 
 ## Early-exit rules
 
@@ -10,6 +14,7 @@ The nominal stage list is an upper bound. After every phase terminal result, app
 |---|---|---|---|
 | Investigation finds no credible defect or actionable incident issue | `NO_ISSUE` | Investigation | Complete or bounded discovery, zero issues, and disproved candidates |
 | In `debug` or `repair`, diagnosis leaves no approved actionable repair | `NO_ACTIONABLE_REPAIR` | Diagnosis | Per-issue classifications and reasons, including deferred items |
+| In `debug` or `repair`, planning produces no executable task for the approved repair set | `NO_ACTIONABLE_REPAIR` | Planning | The frozen repair set, the blocking reason, and the rejected decompositions |
 | In `debug` or `repair`, the user selects no repair | `NO_REPAIR_SELECTED` | Repair selection | Explicit selection and `SELECTED_ISSUES: NONE` |
 | An approved repair is already present and focused verification passes without a source change | `CHANGE_ALREADY_PRESENT` | Verification | `IMPLEMENTATION_STATUS: NO_CHANGE` plus focused verification of the original invariant |
 | A standalone review has no changed artifact in its explicitly resolved scope | `EMPTY_REVIEW_SCOPE` | Review scope check | The resolved comparison target and evidence that its diff is empty |
@@ -32,7 +37,7 @@ The current run directory is disposable only under [Run artifact cleanup](#run-a
 
 Before delegating, record the incident input and workspace root. Every phase must read the same incident input and applicable repository instructions. Later phases read prior artifact files rather than receiving a rewritten narrative.
 
-Apply the selected run-control mode from [confirmation.md](confirmation.md). In **单步确认** mode, stop before stages 1-5 and before every Agent switch or parallel Agent batch; present the required checkpoint and wait. A phase terminal marker does not authorize the next phase.
+Apply the selected run-control mode from [confirmation.md](confirmation.md). In **单步确认** mode, stop before stages 1-7 and before every Agent switch or parallel Agent batch; present the required checkpoint and wait. A phase terminal marker does not authorize the next phase. Planning has its own checkpoint before the implementation checkpoint, because a different Agent produces `plan.md` and `tasks.yaml`. Confirm one implementer wave as one packaged batch only when its tasks have disjoint file scopes; confirm integration as its own checkpoint.
 
 ## Subagent state, liveness and result visibility
 
@@ -65,14 +70,23 @@ Before starting diagnosis, apply [Early-exit rules](#early-exit-rules). If no cr
 
 ## 2. Diagnosis
 
-Use an independent diagnosis agent when available. It must read the incident input and `evidence.md`, inspect relevant source as needed, and make no edits.
+Use an independent diagnosis Agent, default `gpt-5.6-sol/medium`. It must read the incident input and `evidence.md`, inspect relevant source as needed, and make no edits.
+
+Diagnosis answers what is broken, why, and how far it reaches. Whether it also plans depends on `PLANNING_MODE`:
+
+- `PLANNING_MODE: INLINE` — the default for a `MINIMAL` repair. The same diagnostician continues into stage 3 in the same dispatch and context, and appends `plan.md` and a single-task `tasks.yaml`. It designs no refactor, creates no waves, and stops at one task.
+- `PLANNING_MODE: DEDICATED` — a separate planner Agent owns stage 3 with its own context. The diagnostician then stops at cause and impact: it does not decompose work, does not design the target structure, does not choose execution order, and must not produce `plan.md` or `tasks.yaml`.
+
+The coordinator decides the mode before stage 3 starts, using [the planning-mode rule](#planning-mode).
 
 Produce `diagnosis.md` with:
 
 - symptom, trigger, contributing factors, root cause, and downstream effect;
 - causal chain and violated invariant;
-- `REPAIR_TYPE: MINIMAL | STRUCTURAL | MIXED | UNDETERMINED`;
-- smallest plausible correct patch and blast radius;
+- the invariant a repair must restore or enforce;
+- impact scope: affected modules, files, symbols, contracts, data, callers, and tests, with the blast radius of each candidate repair direction;
+- `REPAIR_TYPE: MINIMAL | STRUCTURAL | MIXED | UNDETERMINED`, and, for `STRUCTURAL`, why no focused patch can enforce the invariant;
+- the smallest plausible correct patch, only as feasibility evidence for the repair direction and never as an implementation design;
 - rejected alternatives and why;
 - focused and regression acceptance tests;
 - `CONFIDENCE: HIGH | MEDIUM | LOW | MIXED`;
@@ -83,34 +97,129 @@ For multiple issues, these top-level markers may use `REPAIR_TYPE: MIXED`, `CONF
 
 Diagnose and classify every issue in `issue-ledger.md`. A full diagnosis may be complete when some issues are explicitly `BLOCKED`, `DEFERRED`, `DUPLICATE`, or `NOT_A_DEFECT`, but each such status needs evidence and a reason.
 
-In `debug` or `repair`, if diagnosis leaves no approved, actionable repair for this run, apply [Early-exit rules](#early-exit-rules) and exit after recording the diagnosis. A standalone `diagnose` instead completes at its normal scope boundary. A repair menu is unnecessary when there are no eligible repairs. If a user explicitly chooses not to repair, record the selection and exit without implementation or review.
+In `debug` or `repair`, if diagnosis leaves no approved, actionable repair for this run, apply [Early-exit rules](#early-exit-rules) and exit after recording the diagnosis; do not dispatch a planner and do not continue into planning. A standalone `diagnose` completes at its normal scope boundary at the end of stage 2 and never produces `plan.md`, `tasks.yaml`, or source edits. A repair menu is unnecessary when there are no eligible repairs. If the user explicitly chooses not to repair, record the selection and exit without planning, implementation, or review.
 
-Consider expert escalation when confidence is low, minimal versus structural is unresolved, the issue crosses multiple modules, it involves concurrency/state machines/complex data models, or the same repair direction has failed twice. Start from the diagnosis default, `gpt-5.6-sol` with `medium` effort. A stronger model, effort, or compute mode follows the authorization contract in [confirmation.md](confirmation.md), including in automatic mode. The expert returns `PROCEED` or `RETURN_TO_DIAGNOSIS`; it does not edit source. Do not implement while it recommends returning to diagnosis.
+Consider expert escalation when confidence is low, minimal versus structural is unresolved, the issue crosses multiple modules, it involves concurrency/state machines/complex data models, or the same repair direction has failed twice. Start from the diagnosis default, `gpt-5.6-sol` with `medium` effort. A stronger model, effort, or compute mode follows the authorization contract in [confirmation.md](confirmation.md), including in automatic mode. The expert returns `PROCEED` or `RETURN_TO_DIAGNOSIS`; it does not edit source. Do not plan or implement while it recommends returning to diagnosis.
 
-## 3. Implementation
+## 3. Planning
 
-Proceed only with `DIAGNOSIS_STATUS: COMPLETE`, a valid per-issue approval, and an explicit repair-set choice under [multi-issue.md](multi-issue.md). Freeze `SELECTED_ISSUES` before writing. Newly discovered issues return to triage and selection rather than silently expanding implementation.
+Planning turns the frozen repair set into executable work. It runs after diagnosis and after repair selection, and no implementer is dispatched before `plan.md` and `tasks.yaml` exist.
 
-Assign exactly one writer. Give it the incident input, `evidence.md`, `diagnosis.md`, repository instructions, the current working-tree snapshot, and the attempt number.
+Enter planning only with `DIAGNOSIS_STATUS: COMPLETE`, `REPAIR_APPROVED: YES` for every selected issue, and a frozen, non-pending `SELECTED_ISSUES`.
 
-The writer must:
+### Planning mode
 
+The coordinator chooses `PLANNING_MODE` before this stage starts and records it with the dispatch ledger:
+
+| Mode | When | Who runs stage 3 | Route |
+|---|---|---|---|
+| `INLINE` | `MINIMAL`, one selected issue or one shared repair direction, and a single-module blast radius | the same diagnostician, continuing its existing dispatch and context | `gpt-5.6-sol/medium` |
+| `DEDICATED` | `STRUCTURAL` or `MIXED`; more than one selected issue with distinct file scopes; multi-module, migration, or deletion work; parallel implementation requested; or the user asks for a refactor plan | a separate planner Agent with its own context | `gpt-5.6-luna/max` |
+
+Default to `INLINE`. The point of the split is context isolation for large changes, not ceremony for small ones: a one-task repair must not pay for an extra dispatch and a fresh context.
+
+In `INLINE` mode the diagnostician writes `diagnosis.md`, then `plan.md` and a one-task `tasks.yaml` in the same turn sequence, reusing the canonical label it was dispatched with. If it discovers that the repair needs more than one task, dependency waves, or an integration step, it must stop planning, record `PLAN_STATUS: BLOCKED` with the evidence, and hand back to the coordinator, which switches the run to `DEDICATED` and dispatches a planner. It must not stretch an inline plan into a multi-task decomposition.
+
+In `DEDICATED` mode the planner reads the incident input, `evidence.md`, `diagnosis.md`, `issue-ledger.md`, applicable repository instructions, and the current diff; it may inspect source read-only to find seams, callers, and dependency boundaries. It does not inherit the diagnostician's working memory.
+
+The planner decides how the approved repair is executed, never what is wrong. It must not redesign the root cause, change `REPAIR_TYPE`, reclassify issues, or modify the frozen selection. When the diagnosis cannot support a safe decomposition, it stops, records `PLAN_STATUS: BLOCKED` with the evidence and the exact contradiction, and returns the run to stage 2; it must not silently invent a different repair direction.
+
+Produce `plan.md` with:
+
+- the requirement being satisfied, decomposed into verifiable units tied to the selected issue IDs;
+- the refactor or repair approach, and why it wins over the rejected alternatives;
+- the task decomposition and why these boundaries, including what stays out of scope;
+- the dependency graph between tasks and the resulting execution waves;
+- the parallel and serial strategy: which tasks run concurrently because their file scopes and contracts do not collide, and which must stay serial;
+- the integration strategy: expected seams, shared contracts, call-site updates, and known conflict points;
+- per-task and whole-run acceptance criteria, including the commands or assertions that prove them;
+- risk, blast radius, rollback approach, and the verification strategy for stage 6;
+- `PLAN_STATUS: COMPLETE | BLOCKED`.
+
+Produce `tasks.yaml` using [the task-contract schema](artifacts.md#task-contract). It contains every subtask with its owner, exclusive file scope, dependencies, wave, and acceptance conditions. A task is dispatchable only when its owner, scope, and acceptance conditions are explicit.
+
+In `INLINE` mode the dependency graph, waves, and parallel strategy collapse to one line each: one task, one wave, one implementer. Record them in that form instead of omitting them, so the task contract stays uniform across both modes.
+
+Size the decomposition to the repair type:
+
+- `MINIMAL` normally yields one task; keep `IMPLEMENTATION_MODE: SINGLE` unless two clearly separable, file-disjoint units exist.
+- `STRUCTURAL` or `MIXED` normally yields several tasks with explicit waves; use `IMPLEMENTATION_MODE: POOLED` only when at least two tasks have disjoint file scopes.
+- Tasks that must touch the same file belong to one task or are split across an integration-owned seam, never to two concurrent implementers.
+
+Every task in `tasks.yaml` must carry an acceptance condition that stage 6 can execute or check, and the union of task scopes must cover the approved repair while staying inside the frozen `SELECTED_ISSUES` and the authorized file boundary.
+
+A request for a plan without code changes is not a separate run mode: run `debug` or `repair` to this stage, then stop or pause at the planning checkpoint. `plan.md` and `tasks.yaml` are retained as deliverables, and no implementer is dispatched.
+
+In `debug` or `repair`, if planning produces no executable task, apply [Early-exit rules](#early-exit-rules) with `EARLY_EXIT_REASON: NO_ACTIONABLE_REPAIR` and `EARLY_EXIT_PHASE: PLANNING`.
+
+Consider expert escalation when the planner cannot produce a safe decomposition, dependencies are circular or unresolvable, every candidate violates file-disjointness, or the same plan direction has been rejected twice. Escalation follows the same authorization contract in [confirmation.md](confirmation.md); the expert is read-only and returns `PROCEED` or `RETURN_TO_DIAGNOSIS`.
+
+## 4. Implementation
+
+Proceed only with `DIAGNOSIS_STATUS: COMPLETE`, `PLAN_STATUS: COMPLETE`, a valid per-issue approval, and an explicit repair-set choice under [multi-issue.md](multi-issue.md). Freeze `SELECTED_ISSUES` before writing. Newly discovered issues return to triage and selection rather than silently expanding implementation.
+
+Dispatch one implementer per task in `tasks.yaml`, wave by wave. Never dispatch a task whose dependencies are not terminal-complete, and never let two implementers write the same file concurrently. `IMPLEMENTATION_MODE: SINGLE` dispatches exactly one implementer owning one task; `POOLED` dispatches several, each with a stable identifier such as `实施 Agent A`.
+
+Keep each implementer's context small. Give it only:
+
+- a short incident summary and the frozen issue IDs its task covers;
+- its own `tasks.yaml` entry: task ID, exclusive file scope, dependencies, and acceptance conditions;
+- the relevant excerpts of `evidence.md`, `diagnosis.md`, and `plan.md` for that task, or their paths when an excerpt would be lossy;
+- repository instructions, the current working-tree snapshot, the run directory, and the attempt number;
+- its assigned `tasks/<task-id>/state.md` path, terminal handoff states, and the obligation to end its turn immediately after handoff.
+
+Do not pass the whole incident history, unrelated tasks, or unrelated artifacts merely for completeness; per-task context isolation is what keeps the pool cheap and reliable.
+
+Every implementer must:
+
+- write only inside its assigned file scope;
 - preserve unrelated and pre-existing changes;
-- implement the smallest change that restores the invariant;
-- keep public behavior stable unless the approved diagnosis requires a contract change;
+- implement the smallest change that satisfies its own acceptance conditions;
+- keep public behavior stable unless the approved diagnosis requires a contract change, and report a required contract change rather than making it silently;
 - add or adjust tests to prove behavior, never merely to make assertions pass;
-- update required architecture/product documentation in the same change;
-- track any temporary logging, probes, breakpoints, fixtures, generated data, or configuration used during repair so verification can prove they were removed or intentionally retained;
+- update required architecture/product documentation when its task owns that surface;
+- track any temporary logging, probes, breakpoints, fixtures, generated data, or configuration it used, so verification can prove they were removed or intentionally retained;
 - avoid opportunistic cleanup and unrelated formatting;
-- follow repository-specific environment and commit rules.
+- follow repository-specific environment and commit rules;
+- leave cross-task seams, interface mismatches, and out-of-scope defects recorded instead of fixing them.
 
-Produce `implementation.md` containing selected issue IDs, per-issue or shared-direction attempt numbers, files changed, behavioral differences, deviations from diagnosis, tests added, and `IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED`.
+Each implementer produces `implementation/tasks/<TASK-ID>.md` with its task ID, covered issue IDs, attempt number, files changed, behavioral differences, deviations from the task contract, tests added, unresolved seams handed to integration, and `TASK_IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED`.
 
-If the writer finds that the approved repair may already be present, use `IMPLEMENTATION_STATUS: NO_CHANGE` and record why. Proceed to focused verification of the original invariant; only a passing result permits `EARLY_EXIT_REASON: CHANGE_ALREADY_PRESENT`. If the check fails or cannot distinguish the diagnosis from a pre-existing or environmental failure, end partial or blocked rather than treating the absent diff as success. Independent review is unnecessary when the resolved comparison confirms that this run made no source change.
+The coordinator aggregates the per-task records into `implementation.md` containing the selected issue IDs, `IMPLEMENTATION_MODE`, `IMPLEMENTER_COUNT`, outcome per task ID, per-issue or shared-direction attempt numbers, files changed, behavioral differences, deviations from diagnosis or plan, tests added, seams handed to integration, and `IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED`.
 
-## 4. Verification
+On the first failed direction for a task, issue, or shared root-cause group, return it with the findings before a second attempt: to planning when the decomposition, task boundary, or acceptance conditions are at fault, and to diagnosis when the repair direction itself is at fault. After the second failed direction, stop patching that unit and invoke expert escalation; do not start a third attempt. In a pool, an independent task may continue only when it does not depend on the stopped unit and doing so remains safe.
 
-Verification is a separate judgment from implementation. It may run in a delegated agent after the writer has stopped editing.
+If the implementer finds that the approved repair may already be present, use `IMPLEMENTATION_STATUS: NO_CHANGE` and record why. Proceed to focused verification of the original invariant; only a passing result permits `EARLY_EXIT_REASON: CHANGE_ALREADY_PRESENT`. If the check fails or cannot distinguish the diagnosis from a pre-existing or environmental failure, end partial or blocked rather than treating the absent diff as success. Integration and independent review are unnecessary when the resolved comparison confirms that this run made no source change.
+
+## 5. Integration
+
+Integration is a conditional assembly phase, not a second implementation. It runs only when more than one implementer wrote source; otherwise record `INTEGRATION_STATUS: SKIPPED` with the reason and go to stage 6.
+
+Assign exactly one integrator, and let it be the only source writer while it runs. Give it the incident input, `plan.md`, `tasks.yaml`, every `implementation/tasks/<TASK-ID>.md`, the frozen `SELECTED_ISSUES`, the current diff, and the integration strategy from `plan.md`.
+
+The integrator must:
+
+- merge the subtask results into one coherent change;
+- resolve conflicts and duplicated or divergent edits introduced by parallel implementers;
+- repair interface, signature, type, contract, and naming mismatches across task boundaries;
+- complete missing wiring: call sites, registration, exports, routes, migrations, configuration, and documentation cross-references;
+- prove the whole assembles by running the repository-prescribed build, type, or smoke checks;
+- record every deviation from `tasks.yaml` and every seam it resolved.
+
+The integrator must not redesign the approved repair, change acceptance criteria, implement unselected or deferred issues, or silently expand scope. When assembly reveals a wrong decomposition or a missing task boundary, it stops and returns the run to planning; when it reveals a wrong repair direction, it returns to diagnosis. Record the evidence either way.
+
+Produce `integration.md` with the tasks merged, conflicts and interface mismatches resolved, missing connections completed, checks run and their results, deviations from the task contract, unresolved items returned to planning, and `INTEGRATION_STATUS: SKIPPED | COMPLETE | PARTIAL | BLOCKED`.
+
+## 6. Verification
+
+Verification is a separate judgment from implementation and integration. It runs in a delegated agent after every writer has stopped editing, and it judges only whether the result satisfies the requirement and the acceptance criteria.
+
+The verifier must not merge branches, resolve conflicts, repair defects, or edit source; it verifies and reports. Route each finding instead of fixing it:
+
+- a defect inside one task's file scope returns to implementation for that task;
+- a seam, interface, conflict, or missing-connection defect across tasks returns to integration;
+- an acceptance-condition, task-boundary, or wave-ordering defect returns to planning;
+- a requirement or repair-direction defect returns to diagnosis.
 
 Validate progressively:
 
@@ -127,21 +236,23 @@ Diagnostic residue includes temporary logs, probes, breakpoints, debug-only bran
 
 Do not treat a passing unrelated test as proof. Classify failures as repair regression, implementation error, diagnosis error, environment problem, or pre-existing failure.
 
-Produce `verification.md` with per-issue commands and results, shared-root-cause symptom coverage, combined regression results, original reproduction outcome, recurrence-scan scope and findings, recurrence-triage state, diagnostic-residue check, unexplained failures, coverage limits, and `VERIFICATION_STATUS: PASS | PARTIAL | FAIL | BLOCKED`.
+Produce `verification.md` with per-issue commands and results, per-task acceptance-condition outcomes when the run was pooled, shared-root-cause symptom coverage, combined regression results, original reproduction outcome, recurrence-scan scope and findings, recurrence-triage state, diagnostic-residue check, unexplained failures, coverage limits, and `VERIFICATION_STATUS: PASS | PARTIAL | FAIL | BLOCKED`.
 
-On the first failed implementation direction for an issue or shared root-cause group, return to diagnosis before attempt two. After its second failed direction, stop patching that issue and invoke expert escalation; do not start attempt three. Continue an independent selected issue only when the failed issue is not its prerequisite and doing so remains safe.
+## 7. Independent review
 
-## 5. Independent review
+Use a read-only reviewer that neither implemented nor integrated the patch whenever the client and current Agent ownership make that possible. Prefer a fresh Agent with isolated context; a coordinator that did not write the patch also qualifies. The reviewer reads the incident input, the requirement, all artifacts, applicable repository instructions, Git diff, changed source, and relevant tests. It must not edit, commit, stash, or reset anything. Record `REVIEW_INDEPENDENCE: INDEPENDENT`.
 
-Use a read-only reviewer that did not implement the patch whenever the client and current Agent ownership make that possible. Prefer a fresh Agent with isolated context; a coordinator that did not write the patch also qualifies. The reviewer reads the incident input, all artifacts, applicable repository instructions, Git diff, changed source, and relevant tests. It must not edit, commit, stash, or reset anything. Record `REVIEW_INDEPENDENCE: INDEPENDENT`.
+If no independent reviewer is available, a coordinator that implemented or integrated the patch may perform a separate read-only fallback pass only when all of these are true: one selected issue, `MINIMAL`, `SINGLE` implementation mode, first implementation attempt, no integration work, low blast radius, and no security, public-contract, persistence, migration, concurrency, lifecycle, or state-machine impact. Stop editing before the fallback, re-read the stated requirements and final diff, run the same review rubric, record `REVIEW_INDEPENDENCE: LIMITED`, and disclose the limitation. For any other repair, record `REVIEW_INDEPENDENCE: UNAVAILABLE` and `DECISION: BLOCKED`; do not weaken the classification merely to complete the run.
 
-If no independent reviewer is available, a coordinator that implemented the patch may perform a separate read-only fallback pass only when all of these are true: one selected issue, `MINIMAL`, first implementation attempt, low blast radius, and no security, public-contract, persistence, migration, concurrency, lifecycle, or state-machine impact. Stop editing before the fallback, re-read the stated requirements and final diff, run the same review rubric, record `REVIEW_INDEPENDENCE: LIMITED`, and disclose the limitation. For any other repair, record `REVIEW_INDEPENDENCE: UNAVAILABLE` and `DECISION: BLOCKED`; do not weaken the classification merely to complete the run.
+Judge the requirement, the final code, and the verification results together. Review adversarially for:
 
-Review adversarially for:
-
+- whether the change actually solves the stated requirement and restores the invariant, rather than only making tests pass;
 - root-cause validity and repair classification;
-- invariant restoration and regression risk;
-- public API, persistence, concurrency, and backward-compatibility impact;
+- over-modification: changes beyond the frozen `SELECTED_ISSUES`, the approved task decomposition, or the authorized file scope;
+- task-decomposition completeness: every task in `tasks.yaml` reached its acceptance conditions, and no required subtask was dropped;
+- integration completeness when the pool ran: seams resolved, interfaces consistent, no half-migrated or dead paths left behind;
+- architectural soundness: cohesion, layering, dependency direction, and whether the decomposition left duplicated concepts or awkward boundaries;
+- introduced risk: regression exposure, public API, persistence, concurrency, backward compatibility, and migration safety;
 - security issues, secret exposure, unsafe shell/process behavior, TLS/auth weakening, and path traversal;
 - missing or inadequate tests;
 - untriaged recurrence-scan findings or leaked diagnostic residue;
@@ -157,7 +268,7 @@ Produce `review.md` with findings and terminal markers:
 - `REVIEW_INDEPENDENCE: INDEPENDENT | LIMITED | UNAVAILABLE`
 - `DECISION: PASS | FAIL | BLOCKED`
 
-For `debug` or `repair`, if review fails and the total implementation-attempt limit is not exhausted, return to diagnosis with the findings. For standalone `review`, report the findings and stop with `DECISION: FAIL` or `BLOCKED`; do not diagnose, edit, or start a repair loop. Completion of an implemented repair requires `DECISION: PASS` and an independence value allowed by the rules above.
+For `debug` or `repair`, if review fails and the total implementation-attempt limit is not exhausted, return with the findings to the phase that owns them: diagnosis for a requirement or repair-direction defect; planning for a decomposition, task-boundary, or acceptance defect; the owning task's implementation for a single-task defect; integration for a cross-task assembly defect. For standalone `review`, report the findings and stop with `DECISION: FAIL` or `BLOCKED`; do not diagnose, edit, or start a repair loop. Completion of an implemented repair requires `DECISION: PASS` and an independence value allowed by the rules above.
 
 ## Completion summary
 
@@ -173,14 +284,14 @@ Use these visible labels under the section. Write `无` only when absence is con
 - `发现的问题` — what was observed and the issue IDs or shared root-cause groups it represents; when multiple issues exist, separate fixed, failed/blocked, deferred, duplicate, and not-a-defect IDs;
 - `根因` — the confirmed causal chain and violated invariant;
 - `修改状态` — exactly `已修改`, `部分修改`, or `未修改`, referring only to changes made by this workflow run; list the principal files or components changed, or state why no modification was made without counting pre-existing user changes;
-- `处理方式` — diagnosis or repair actions taken, repair type and meaningful behavioral difference; write `未实施修复` when applicable;
+- `处理方式` — diagnosis, planning, repair, and integration actions taken, repair type, planning mode, implementation mode with the number of implementers when pooled, and the meaningful behavioral difference; write `未实施修复` when applicable;
 - `验证结果` — focused and regression checks, their outcomes, and the independent-review decision or limitation;
-- `子 Agent 结论` — when delegation occurred, identify every dispatched Agent and synthesize its terminal outcome, conclusion, material limitation, and effect on the workflow; in either run-control mode, use every Agent's retained canonical disclosure label and apply the same pre-send gate; otherwise write `不适用`;
+- `子 Agent 结论` — when delegation occurred, identify every dispatched Agent and synthesize its terminal outcome, conclusion, material limitation, and effect on the workflow; in either run-control mode, use every Agent's retained canonical disclosure label and apply the same pre-send gate; for an implementer pool, group members by task ID instead of repeating near-identical outcomes; otherwise write `不适用`;
 - `遗留事项` — unresolved, deferred, blocked, partially verified issues, remaining risks, and the concrete next action;
 - `交付状态` — whether required documentation was synchronized and whether a commit was created when either is relevant.
 - `中间产物清理` — for a normally completed run in either run-control mode, state `已清理` and the exact removed `RUN_ARTIFACT_DIR`, or `失败` with the retained path and reason; for all other exits, state `已保留` and why, or `不适用` when no run artifacts were created.
 
-For multiple selected issues, group details by issue ID when their outcomes differ; do not hide a failed issue behind an aggregate success statement. Do not claim success from an attempted edit alone: clearly distinguish fixed, partially fixed, unverified, and unresolved issues. Synthesize the final artifacts instead of copying their full contents or repeating earlier progress updates.
+For multiple selected issues or pooled tasks, group details by issue ID or task ID when their outcomes differ; do not hide a failed issue or task behind an aggregate success statement. Do not claim success from an attempted edit alone: clearly distinguish fixed, partially fixed, unverified, and unresolved issues. Synthesize the final artifacts instead of copying their full contents or repeating earlier progress updates.
 
 ### Run artifact cleanup
 

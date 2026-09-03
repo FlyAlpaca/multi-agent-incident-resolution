@@ -27,16 +27,63 @@ When resuming a legacy ledger, interpret `TERMINAL_CONFIRMATION: SELF_REPORTED` 
 
 Use `TERMINAL_CONFIRMATION: UNAVAILABLE` only when runtime termination cannot be queried or established; it cannot support `WORKER_LIFECYCLE: TERMINAL_CONFIRMED`. A worker that is runtime-stopped without a usable handoff uses `RUNTIME_STATUS` for termination and `TASK_HANDOFF_STATUS: UNAVAILABLE` until the abnormal handoff is reconstructed or declared unavailable.
 
+Create one ledger record per dispatched Agent. For an implementer pool, each record carries the task ID, stable pool identifier, wave, exclusive file scope, and acceptance conditions; never collapse several implementers into one record, and never reuse one record when a task is reassigned.
+
 Reserve one `<RUN_ARTIFACT_DIR>/tasks/<task-id>/state.md` path per active dispatch. Write `result.md` at every terminal outcome, including a partial result when failure or cancellation leaves useful evidence, and use `events.jsonl` only for a complex or abnormal task. [The subagent state protocol](subagent-state.md) defines ownership, state, atomic writes, observation, and terminal handling.
 
 Keep all skill-owned records and deliberately redirected intermediate output inside the recorded `RUN_ARTIFACT_DIR`, so cleanup never scans unrelated paths. Repository-prescribed test/build caches and generated output may remain in their normal locations; track and inspect them as possible diagnostic residue. User inputs, project source, runtime data, service logs, and required deliverables are not workflow intermediates and must never be moved into the run directory merely to make cleanup convenient.
 
 Maintain `issue-ledger.md` as the canonical multi-issue inventory. Each row or section must include stable issue ID, title, status, severity, confidence, root-cause group, dependencies, repair type, approval, selection status, and latest verification result. Never renumber an issue during the same incident.
 
+## Task contract
+
+`tasks.yaml` is the machine-readable contract between planning, the implementer pool, integration, and verification. Keep it in `RUN_ARTIFACT_DIR` and update it in place; it is the only place that defines what an implementer may write and how its work is accepted.
+
+```yaml
+run:
+  artifact_dir: <absolute RUN_ARTIFACT_DIR>
+  repair_type: MINIMAL | STRUCTURAL | MIXED
+  implementation_mode: SINGLE | POOLED
+  selected_issues: [ISSUE-001]
+tasks:
+  - id: TASK-001
+    title: <short actionable title>
+    issue_ids: [ISSUE-001]
+    owner: IMPLEMENTER-A          # stable pool identifier; IMPLEMENTER-SINGLE when N=1
+    route: gpt-5.6-luna/max
+    wave: 1                       # tasks in one wave may run concurrently
+    depends_on: []
+    file_scope:                   # exclusive write scope; union of all tasks is the repair scope
+      - path/to/file.ts
+    read_scope:                   # additional paths the implementer may read
+      - path/to/consumer.ts
+    acceptance:                   # executable or objectively checkable conditions
+      - <command or assertion>
+    deliverable: implementation/tasks/TASK-001.md
+    status: PENDING | RUNNING | DONE | NO_CHANGE | BLOCKED | FAILED | CANCELLED
+    attempt: 0
+```
+
+Required properties:
+
+- Task IDs are stable for the whole run; never renumber or reuse one.
+- `file_scope` sets of tasks in the same wave must be disjoint, and no file may be owned by two tasks at any time.
+- `depends_on` references only task IDs from an earlier wave; a task is dispatchable only after every dependency is terminal-complete.
+- `acceptance` must be checkable by stage 6 without reinterpretation; a task without acceptance conditions is not dispatchable.
+- `status` and `attempt` are updated in place by the coordinator; never rewrite history to hide a failed task.
+- The union of all `file_scope` entries stays inside the frozen `SELECTED_ISSUES` and the authorized file boundary; anything outside returns to triage and selection.
+
+Related run artifacts:
+
+- `plan.md` — the human-readable decomposition, dependency, parallel, integration, and verification strategy;
+- `implementation/tasks/<TASK-ID>.md` — one record per dispatched task;
+- `implementation.md` — the coordinator-owned aggregate of the implementation phase;
+- `integration.md` — the assembly record, required whenever more than one implementer wrote source.
+
 ## Resume rules
 
-- `diagnose` may produce or refresh only the workflow artifacts required by stages 1–2, including `evidence.md`, `diagnosis.md`, and `issue-ledger.md`; it must not edit project source or tests.
-- `repair` requires a supplied or existing current diagnosis. Normalize a sufficiently evidenced supplied diagnosis into `diagnosis.md` and `issue-ledger.md`; do not repeat investigation solely because the input did not already use this skill's artifact format. Before implementation, require `DIAGNOSIS_STATUS: COMPLETE`, an explicit non-pending repair selection, and `REPAIR_APPROVED: YES` for every selected issue. If the diagnosis is incomplete or stale relative to the incident input or current diff, return to diagnosis and selection.
+- `diagnose` may produce or refresh only the workflow artifacts required by stages 1–2, including `evidence.md`, `diagnosis.md`, and `issue-ledger.md`; it must not produce `plan.md` or `tasks.yaml`, and must not edit project source or tests.
+- `repair` requires a supplied or existing current diagnosis and a resolved repair selection. Normalize a sufficiently evidenced supplied diagnosis into `diagnosis.md` and `issue-ledger.md`; do not repeat investigation solely because the input did not already use this skill's artifact format. Derive `plan.md` and `tasks.yaml` in stage 3 when they are missing, stale, or inconsistent with the frozen diagnosis and selection; no implementation is dispatchable without them. Before implementation, require `DIAGNOSIS_STATUS: COMPLETE`, `PLAN_STATUS: COMPLETE`, an explicit non-pending repair selection, and `REPAIR_APPROVED: YES` for every selected issue. If the diagnosis is incomplete or stale relative to the incident input or current diff, return to diagnosis and selection; if only the decomposition is stale, return to planning.
 - `review` can run without prior artifacts against the current diff, source, and tests. Missing artifacts are then a coverage limitation, not an automatic failure.
 - A full `debug` run must not reuse artifacts from a different incident or an earlier source state without validating their inputs and Git revision.
 
@@ -56,9 +103,11 @@ ISSUE_DISCOVERY_STATUS: COMPLETE | BOUNDED | BLOCKED
 ISSUES_FOUND: <non-negative integer>
 
 EARLY_EXIT_REASON: NONE | NO_ISSUE | NO_ACTIONABLE_REPAIR | NO_REPAIR_SELECTED | CHANGE_ALREADY_PRESENT | EMPTY_REVIEW_SCOPE
-EARLY_EXIT_PHASE: NONE | INVESTIGATION | DIAGNOSIS | REPAIR_SELECTION | VERIFICATION | REVIEW
+EARLY_EXIT_PHASE: NONE | INVESTIGATION | DIAGNOSIS | REPAIR_SELECTION | PLANNING | VERIFICATION | REVIEW
 
 DIAGNOSIS_STATUS: COMPLETE | BLOCKED
+PLANNING_MODE: INLINE | DEDICATED | SKIPPED
+PLAN_STATUS: COMPLETE | BLOCKED | SKIPPED
 REPAIR_TYPE: MINIMAL | STRUCTURAL | MIXED | UNDETERMINED
 CONFIDENCE: HIGH | MEDIUM | LOW | MIXED
 REPAIR_APPROVED: YES | PARTIAL | NO
@@ -71,8 +120,14 @@ SELECTED_ISSUES: PENDING | ISSUE-001,ISSUE-002 | NONE
 AGENT_UPGRADES: NONE | PENDING | APPROVED | PREAUTHORIZED | DEFAULTED | CUSTOM | MIXED | CANCELLED
 AGENT_UPGRADE_COUNT: <non-negative integer>
 
+IMPLEMENTATION_MODE: SINGLE | POOLED
+IMPLEMENTER_COUNT: <positive integer>
+TASKS_TOTAL: <non-negative integer>
+TASKS_DONE: <non-negative integer>
 IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED
 ATTEMPT: 1 | 2 | MIXED
+
+INTEGRATION_STATUS: SKIPPED | COMPLETE | PARTIAL | BLOCKED
 
 VERIFICATION_STATUS: PASS | PARTIAL | FAIL | BLOCKED
 RECURRENCE_SCAN_STATUS: CLEAR | FINDINGS | BLOCKED
@@ -86,9 +141,9 @@ DECISION: PASS | FAIL | BLOCKED
 
 ## Required markers by mode
 
-- `DEBUG` normally requires run metadata and all investigation, diagnosis, repair-selection, implementation, verification, recurrence, residue, and review markers. When `EARLY_EXIT_REASON` is not `NONE`, require only the markers for phases actually run plus the terminal early-exit markers; do not fabricate skipped-phase markers.
-- `DIAGNOSE` normally requires run metadata plus investigation and diagnosis markers. Record repair selection as `PENDING` or `NONE` when it is discussed, but implementation, verification, and review markers are not required. If investigation exits with `EARLY_EXIT_REASON: NO_ISSUE`, diagnosis markers are not required. Finishing diagnosis with no actionable repair is normal scope completion, not an early exit, because standalone `diagnose` never included implementation.
-- `REPAIR` normally requires run metadata, a validated diagnosis and repair selection from current artifacts, then implementation, verification, recurrence, residue, and review markers. A diagnosis or selection early exit omits later markers. `CHANGE_ALREADY_PRESENT` still requires implementation and focused-verification markers, but not recurrence, residue, or review markers when this run made no source change.
+- `DEBUG` normally requires run metadata and all investigation, diagnosis, repair-selection, planning (`PLANNING_MODE` and `PLAN_STATUS`), implementation, integration, verification, recurrence, residue, and review markers. `INTEGRATION_STATUS: SKIPPED` is required, not omitted, when only one implementer wrote source; an integration phase skipped by a valid early exit stays unmarked. When `EARLY_EXIT_REASON` is not `NONE`, require only the markers for phases actually run plus the terminal early-exit markers; do not fabricate skipped-phase markers.
+- `DIAGNOSE` normally requires run metadata plus investigation and diagnosis markers. Record repair selection as `PENDING` or `NONE` when it is discussed, but planning, implementation, integration, verification, and review markers are not required; `PLANNING_MODE: SKIPPED` and `PLAN_STATUS: SKIPPED` when they are recorded. If investigation exits with `EARLY_EXIT_REASON: NO_ISSUE`, diagnosis markers are not required. Finishing diagnosis with no actionable repair is normal scope completion, not an early exit, because standalone `diagnose` never included planning or implementation.
+- `REPAIR` normally requires run metadata, a validated diagnosis and repair selection from current artifacts, then planning, implementation, integration, verification, recurrence, residue, and review markers. A diagnosis or selection early exit omits later markers. `CHANGE_ALREADY_PRESENT` still requires implementation and focused-verification markers, but not integration, recurrence, residue, or review markers when this run made no source change.
 - `REVIEW` normally requires run metadata plus `REVIEW_STATUS`, `REVIEW_INDEPENDENCE`, and `DECISION`. Earlier-phase markers are optional; when absent, state the resulting coverage limitation. `EMPTY_REVIEW_SCOPE` may stop after resolving the comparison target and confirming its diff is empty; review-result markers are then unnecessary, and no findings may be invented.
 - Agent-upgrade aggregate markers and the dispatch table are required whenever an Agent is proposed or dispatched; otherwise `AGENT_UPGRADES: NONE` and count `0` are sufficient. Do not dispatch a later-stage Agent after an early-exit condition is met.
 - Every dispatched Agent must have `TASK_HANDOFF_STATUS: TERMINAL | UNAVAILABLE`, a terminal result or explicit interrupted/unavailable status, a concise conclusion or blocker, `USER_RELAY_STATUS: RELAYED`, and `WORKER_LIFECYCLE: TERMINAL_CONFIRMED` before the workflow transitions past that Agent's phase or exits. Task handoff evidence is insufficient while the runtime still reports the dispatch as running; `TERMINATION_FAILED` blocks normal completion.
@@ -100,6 +155,10 @@ For a multi-issue run, the diagnosis markers are aggregate summaries: use `MIXED
 Use `ATTEMPT: MIXED` when selected issues or shared repair groups are on different attempt numbers; retain each exact attempt in `issue-ledger.md` and `implementation.md`.
 
 Use `REPAIR_SELECTION: PENDING` for diagnosis-only output before the user chooses a repair set. Stage 3 cannot begin while selection or selected issues remain `PENDING`. `ISSUE_DISCOVERY_STATUS: BOUNDED` means targeted discovery covered the incident's relevant surfaces and intentionally stopped at the declared scope boundary; it is not a claim that the entire repository is defect-free.
+
+`EARLY_EXIT_PHASE: DIAGNOSIS` is stage 2 only; `PLANNING` is stage 3, used when planning produced no executable task. `PLANNING_MODE: SKIPPED` and `PLAN_STATUS: SKIPPED` apply only when planning never ran, such as a `NO_ISSUE` exit, a `BLOCKED` diagnosis, a `NO_REPAIR_SELECTED` exit, a standalone `diagnose`, or a standalone `review`; never use them to hide an unfinished plan.
+
+`PLANNING_MODE: INLINE` means the diagnostician produced the plan in the same dispatch and keeps its original canonical label; it does not add a second Agent record to the dispatch ledger. `DEDICATED` means a separate planner Agent was dispatched with its own label, task path, and terminal handoff. Record the mode once, before stage 3 starts; a mid-stage switch from `INLINE` to `DEDICATED` keeps the original mode value and records the switch reason and the new dispatch. `IMPLEMENTATION_MODE: SINGLE` with `IMPLEMENTER_COUNT: 1` and `INTEGRATION_STATUS: SKIPPED` is a normal minimal repair, not a degraded one; record why integration was unnecessary. `TASKS_DONE` counts only tasks whose acceptance conditions were met, so a run is not complete while `TASKS_DONE` is below `TASKS_TOTAL` unless the remainder is explicitly triaged, deferred, or blocked.
 
 ## Evidence quality
 

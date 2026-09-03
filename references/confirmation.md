@@ -47,6 +47,8 @@ Automatic mode is not blanket authorization for deployment, destructive operatio
 
 When diagnosis finds repair choices, automatic mode pauses and presents the numbered repair menu defined in [multi-issue.md](multi-issue.md) unless the user preselected a repair set in the activating request. Repair selection is a product/scope decision, not a routine stage prompt.
 
+Choosing `PLANNING_MODE`, `POOLED` implementation, dispatching an implementer wave from the approved `tasks.yaml`, or running the conditional integration phase are routing decisions inside the confirmed scope. They still require routing disclosure and any Agent-upgrade confirmation, but they do not need a further stage confirmation in automatic mode while the decomposition stays inside the frozen `SELECTED_ISSUES` and the authorized file boundary.
+
 Both run-control modes pause before an Agent upgrade above the role defaults defined in `SKILL.md`, unless the user has already explicitly authorized that exact role and configuration for this incident. A general preference for quality, escalation, automatic execution, or a model family is not exact authorization.
 
 Full or early completion in either mode includes [run artifact cleanup](workflow.md#run-artifact-cleanup). Entry selection authorizes only deletion of the validated current run directory after scope completion—not shared roots, other runs, source/runtime data, user logs, or artifacts from any other exit state.
@@ -61,6 +63,8 @@ As soon as a route is selected, create and retain one canonical label with the d
 
 Before dispatching, emit a visible `commentary` update using `下一步执行：<规范披露标签>；任务：<有界职责>`. For a parallel batch, give one concise sentence per subagent with its own canonical label and bounded task. Do not dispatch until every planned subagent has a canonical label and bounded task.
 
+Give each member of an implementer pool a stable identifier such as `实施 Agent A` and reuse it in its canonical label, its `tasks.yaml` owner, its ledger record, and every later reference. State its task ID and exclusive file scope in the bounded task so the write boundary is visible before dispatch; a pool member without a visible file scope must not be dispatched.
+
 Record the complete dispatch fields required by [artifacts.md](artifacts.md). They include the task plan, canonical `state.md` path, optional `events.jsonl` path when justified, terminal handoff states, immediate terminal-turn exit obligation, and task-specific observation schedule; transport/channel limits are not work limits or timeout decisions.
 
 After dispatch, use the same canonical label verbatim in every user-facing reference to that actual subagent, including progress, substitution, failure, cancellation, terminal relay, planned next execution, and final summary. Label each member of a batch separately. A substitution gets a newly disclosed label; an upgrade still requires confirmation. Generic references to a stage or role catalog are exempt.
@@ -68,6 +72,8 @@ After dispatch, use the same canonical label verbatim in every user-facing refer
 Invalid: `验证 Agent 正在运行；之后由独立 Reviewer 复核。`
 
 Valid: `验证 Agent（模型：gpt-5.6-luna；推理强度：max）正在运行；之后由独立复核 Agent（模型：gpt-5.6-sol；推理强度：medium）复核。`
+
+Valid for a pool: `实施 Agent A（模型：gpt-5.6-luna；推理强度：max）负责 TASK-001，写入范围 src/a/；实施 Agent B（模型：gpt-5.6-luna；推理强度：max）负责 TASK-002，写入范围 src/b/；两者文件范围不重叠，完成后由集成员整合。`
 
 ## Agent upgrade confirmation
 
@@ -105,7 +111,14 @@ Immediately before the single numbered choice set, describe the next executor in
 
 Do not show the confirmation choices or start the phase until every planned subagent has a canonical label, exact model, reasoning effort, and bounded task. If execution changes between the current Agent and a subagent, or any displayed subagent, model, effort, or task changes before execution, create or revise the affected canonical label, present a revised checkpoint, and wait again. A model above the role default still requires exact authorization under the Agent-upgrade contract; routing disclosure alone never authorizes it.
 
-Before implementation, include the issue table and use the single-step combined repair menu from [multi-issue.md](multi-issue.md) when repair selection is pending. That menu replaces the generic stage-action menu and confirms both the selected issue IDs and entry into implementation. For a structural, multi-issue, dependency-ordered, contract-changing, migration, concurrency, lifecycle, state-machine, or otherwise high-blast-radius repair, expand this checkpoint with the ordered implementation sequence, dependencies, affected contracts or data, rollback approach, per-issue checks, and combined regression checks. Do not create a separate planning phase or `plan.md` merely to repeat diagnosis and implementation information.
+Before planning or implementation, include the issue table and use the single-step combined repair menu from [multi-issue.md](multi-issue.md) when repair selection is pending. That menu replaces the generic stage-action menu and confirms both the selected issue IDs and entry into planning followed by implementation. For a structural, multi-issue, dependency-ordered, contract-changing, migration, concurrency, lifecycle, state-machine, pooled, or otherwise high-blast-radius repair, expand this checkpoint with the task decomposition from `tasks.yaml`—task ID, owner Agent label, exclusive file scope, dependency wave, and acceptance conditions—plus the ordered implementation sequence, dependencies, affected contracts or data, rollback approach, per-issue checks, and combined regression checks.
+
+Planning is stage 3, and the implementation checkpoint follows only once `plan.md` and `tasks.yaml` exist. Gate it by mode:
+
+- `PLANNING_MODE: INLINE` — the diagnostician continues into planning in the same dispatch, so there is no separate planning checkpoint, no new canonical label, and no second dispatch to confirm; the implementation checkpoint covers the combined result.
+- `PLANNING_MODE: DEDICATED` — in single-step mode, planning gets its own checkpoint with its own canonical label before the implementation checkpoint.
+
+Do not dispatch an implementer before `plan.md` and `tasks.yaml` exist, do not add a planning checkpoint merely to restate the diagnosis, and do not let the task decomposition silently change the frozen `SELECTED_ISSUES`. When a run switches from `INLINE` to `DEDICATED` mid-stage, disclose the new planner label and present the revised checkpoint before dispatching it.
 
 If the implementation proposes an upgrade that lacks exact prior authorization while repair selection is pending, resolve the repair set first using its numbered menu as a scope decision only. Then show a revised implementation checkpoint with the Agent-upgrade menu; options `1` or `2` authorize the displayed implementation transition. Do not write source between those prompts. If the repair set was already selected and no unapproved upgrade is proposed, use the generic stage-action menu below.
 
@@ -125,7 +138,9 @@ Confirmation authorizes only the checkpoint just shown. It does not authorize la
 
 If any non-implementation phase proposes an upgrade that lacks exact prior authorization, use the Agent-upgrade menu instead of the generic stage-action menu. In single-step mode, upgrade options `1` and `2` also authorize the displayed phase or batch, preventing a duplicate confirmation. Selecting **更多操作** authorizes nothing until its secondary prompt is resolved.
 
-Do not ask separately for each member of a safe parallel, read-only Agent batch. Present the batch's roles, purpose, and concurrency once, then use one packaged confirmation. Never package write-capable Agents together; implementation remains a single-writer phase.
+Do not ask separately for each member of a safe parallel, read-only Agent batch. Present the batch's roles, purpose, and concurrency once, then use one packaged confirmation.
+
+Write-capable Agents may be packaged only as one implementer wave: every member must come from the approved `tasks.yaml`, own a disjoint `file_scope`, and carry its own canonical label and bounded task; a later wave needs its own confirmation because earlier results may change its scope. Never package two Agents that can write the same file. The integrator is always dispatched alone and is the only source writer while integration runs.
 
 Within a confirmed phase, routine read-only tool calls and the stated in-scope commands do not require repeated conversational confirmation. Ask again if the phase's scope, permissions, affected files, model routing, or risk materially changes.
 
