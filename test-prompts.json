@@ -13,5 +13,20 @@
     "id": 3,
     "prompt": "帮我独立 review 一下当前分支相对 main 的改动，重点看有没有引入回归和风险。",
     "expected": "进入 review 范围（阶段 7，只读）；产出 review.md 与独立复核结论，不改变源码，区分 INDEPENDENT/LIMITED/UNAVAILABLE。"
+  },
+  {
+    "id": 4,
+    "prompt": "自动全流程重构订单、账务和网关三个模块，根因和推荐修复集合已经确认；请拆分后并行实施并完成整合。",
+    "expected": "从 repair 的阶段 3 开始；使用 DEDICATED 规划与 POOLED 实施，tasks.yaml 明确互斥 file_scope、integration_scope 和 INTEGRATION_REQUIRED: YES；所有实施 worker 退出后仍执行集成，再验证和独立复核。"
+  },
+  {
+    "id": 5,
+    "prompt": "单步确认修复这个已定位的单文件空指针问题，先做诊断，后续每一步等我确认。",
+    "expected": "使用 MINIMAL/INLINE 时复用诊断 Agent，但诊断结束后先等待修复选择与阶段 3 确认；不得以同一 Agent 为由越过单步门禁，恢复规划时创建新的有界派发记录和状态路径。"
+  },
+  {
+    "id": 6,
+    "prompt": "实施池的 TASK-001 已完成，TASK-002 判断修改已存在并返回 NO_CHANGE；tasks.yaml 预留了共享接缝，下一步怎么办？",
+    "expected": "POOLED 对应 INTEGRATION_REQUIRED: YES；不能按实际写入人数跳过阶段 5，必须在所有实施 worker 退出后由集成员按 integration_scope 完成或明确阻塞集成。"
   }
 ]

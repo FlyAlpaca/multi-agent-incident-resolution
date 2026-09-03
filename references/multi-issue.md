@@ -77,15 +77,15 @@ Do not interpret **全部修复** as permission to fix hypotheses, blocked issue
 
 This selection remains a mandatory user decision in automatic mode unless the activating request already says to use the recommended set, all eligible repairs, or an explicit custom issue list.
 
-In single-step mode, include the implementation checkpoint details and present exactly one combined menu for multiple repairable issues:
+In single-step mode, present exactly one combined repair-selection and planning-entry menu for multiple repairable issues:
 
-1. **推荐修复并进入规划与实施** — freeze the listed recommended issue IDs, then run planning and the displayed implementation phase;
-2. **全部修复并进入规划与实施** — freeze every listed eligible repairable issue, then run planning and the displayed implementation phase;
+1. **推荐修复并进入规划** — freeze the listed recommended issue IDs, then run the displayed planning phase;
+2. **全部修复并进入规划** — freeze every listed eligible repairable issue, then run the displayed planning phase;
 3. **更多操作** — open the secondary repair-action menu without authorizing planning or implementation.
 
 Use the same secondary menu defined above. A custom result may select or exclude issue IDs, change constraints, or request more diagnosis; after its details are resolved, present a revised combined checkpoint.
 
-“进入规划与实施” means the run continues into planning and then implementation. Planning is inline in the same diagnostician for a minimal repair and a separate planner Agent for structural or multi-issue work; the checkpoint does not change shape between the two.
+“进入规划” authorizes stage 3 only. Planning reuses the diagnostician for a minimal repair and uses a separate planner Agent for structural or multi-issue work. After `plan.md` and `tasks.yaml` are complete, present the separate implementation checkpoint required by single-step mode.
 
 This combined menu replaces the generic confirmation menu for that checkpoint. Do not display a second numbered list containing “确认 / 取消 / 修改 / 暂停”. If an upgrade lacks exact prior authorization, this menu selects scope only; follow the two-prompt composition rule in [confirmation.md](confirmation.md), and do not write source until the upgrade menu is resolved.
 
@@ -98,7 +98,7 @@ Do not show two indistinguishable “recommended” and “all” choices.
 
 For one repairable issue in single-step mode, use:
 
-1. **修复此问题并进入规划与实施（推荐）**
+1. **修复此问题并进入规划（推荐）**
 2. **更多操作**
 
 For either single-issue menu, option `2` opens the same secondary menu defined above. This also replaces the generic stage-action menu. Apply the same separate Agent-upgrade prompt rule when an upgrade lacks exact prior authorization.
@@ -107,11 +107,9 @@ For either single-issue menu, option `2` opens the same secondary menu defined a
 
 Freeze the selected issue IDs before writing. A newly discovered issue returns to triage and requires a new selection; do not silently append it.
 
-Decompose the frozen repair set into `plan.md` and `tasks.yaml` during stage 3, before any implementation. The planner maps every selected issue to at least one task, and never merges unrelated issues into one task merely to reduce dispatch count. When two issues must touch the same file, keep them in one task or hand the shared seam to integration; never assign one file to two concurrent implementers.
+Follow stages 3–6 in [workflow.md](workflow.md) and the [task contract](artifacts.md#task-contract). Map every selected issue to at least one task without merging unrelated issues merely to reduce dispatch count. Keep unrelated fixes separable when repository policy requires independent commits. If one issue or task fails verification, retain verified independent repairs, mark the failure clearly, and assess its dependants.
 
-Dispatch one implementer per task and order repairs by dependency, wave, and shared root cause. Keep unrelated fixes separable when repository policy requires independent commits. If one issue or task fails verification, do not undo verified independent repairs or continue patching it beyond two attempts; mark its status clearly and assess whether dependent tasks must stop.
-
-Apply the bounded recurrence scan defined in [workflow.md](workflow.md#4-verification). For multiple issues, add credible candidates to the ledger and return them to diagnosis and repair selection; never silently append them to `SELECTED_ISSUES` or treat the scan as unrelated cleanup authority.
+Apply the bounded recurrence scan defined in [workflow.md](workflow.md#6-verification). For multiple issues, add credible candidates to the ledger and return them to diagnosis and repair selection; never silently append them to `SELECTED_ISSUES` or treat the scan as unrelated cleanup authority.
 
 Verify:
 
