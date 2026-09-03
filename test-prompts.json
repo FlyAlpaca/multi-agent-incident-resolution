@@ -28,5 +28,15 @@
     "id": 6,
     "prompt": "实施池的 TASK-001 已完成，TASK-002 判断修改已存在并返回 NO_CHANGE；tasks.yaml 预留了共享接缝，下一步怎么办？",
     "expected": "POOLED 对应 INTEGRATION_REQUIRED: YES；不能按实际写入人数跳过阶段 5，必须在所有实施 worker 退出后由集成员按 integration_scope 完成或明确阻塞集成。"
+  },
+  {
+    "id": 7,
+    "prompt": "规划已经完成，前面调查过程很长。现在开始并行实施，不要把所有历史都继续传下去。",
+    "expected": "主 Agent 先原子重建 active-context.md，保留最终 plan.md、tasks.yaml、冻结问题集、约束、当前工作树和任务状态的精确引用，排除探索过程与无关日志；校验 CONTEXT_STATUS: READY 后才按任务白名单派发实施 Agent。"
+  },
+  {
+    "id": 8,
+    "prompt": "第一轮修改完成，但验证中的原始复现仍然失败。继续修，不要受上一轮实现思路影响。",
+    "expected": "关闭当前 REPAIR_ROUND 为 VERIFICATION_FAILED，保留验证命令、错误、分类和当前工作树，递增轮次并为 TARGET_PHASE: DIAGNOSIS 重建 active-context.md；使用新鲜有界上下文重新诊断和规划，不直接把失败结果发回 writer，且累计 attempt 不清零。"
   }
 ]

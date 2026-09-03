@@ -35,6 +35,34 @@ Keep all skill-owned records and deliberately redirected intermediate output ins
 
 Maintain `issue-ledger.md` as the canonical multi-issue inventory. Each row or section must include stable issue ID, title, status, severity, confidence, root-cause group, dependencies, repair type, approval, selection status, and latest verification result. Never renumber an issue during the same incident.
 
+## Active context and repair rounds
+
+`active-context.md` is the coordinator-owned, replaceable allowlist for the next stage. It controls what is loaded, not what evidence is retained. Keep canonical evidence in its existing artifact and reference it by path plus heading, issue ID, task ID, or error ID; do not paste long excerpts or maintain a second summary of the incident.
+
+Every capsule contains:
+
+```text
+CONTEXT_VERSION: 1
+CONTEXT_GENERATION: <positive integer, incremented on every reset>
+REPAIR_ROUND: <positive integer>
+TARGET_PHASE: DIAGNOSIS | IMPLEMENTATION
+RESET_REASON: PLANNING_TO_IMPLEMENTATION | VERIFICATION_FAILURE
+SOURCE_REVISION: <Git commit or explicit NO_GIT>
+WORKTREE_STATE: <concise status/diff fingerprint or artifact reference>
+AUTHORIZED_SCOPE: <selected issue IDs and file/subsystem boundary>
+CONSTRAINTS: <concise user, repository, safety, and run-control constraints>
+ACTIVE_INVARIANTS: <IDs or precise diagnosis references>
+AUTHORITATIVE_INPUTS: <small path-and-anchor allowlist>
+FAILURE_INPUTS: <verification error IDs/references, or NOT_APPLICABLE>
+TASK_STATE: <current task IDs/statuses or NOT_CREATED>
+NEXT_GATE: <one bounded action or checkpoint>
+CONTEXT_STATUS: READY | BLOCKED
+```
+
+Anything not named by `AUTHORITATIVE_INPUTS` or `FAILURE_INPUTS` is excluded from active context by default. Use references instead of duplicating final plans, constraints, errors, or task entries. Validate the revision, worktree fingerprint, selected issues, and referenced paths immediately before dispatch; drift or a missing authority makes the capsule `BLOCKED` until planning or diagnosis refreshes it. Replace via a validated sibling temporary file and atomic rename so readers never observe a partial capsule.
+
+Maintain `repair-rounds.md` as a compact append-only event ledger. Each row contains round number, event (`OPENED | PASS | VERIFICATION_FAILED | BLOCKED | SUPERSEDED`), baseline revision/worktree fingerprint, diagnosis and plan status, implementation attempts consumed, verification artifact/result, and next route. Detailed reasoning stays in the referenced phase artifacts. Round 1 opens when the initially selected repair enters planning; a repair-attributable verification failure appends a close event for the current round and an `OPENED` event for the next. Never renumber a round, mutate an earlier event, or reset an attempt counter when the round increments.
+
 ## Task contract
 
 `tasks.yaml` is the machine-readable contract between planning, the implementer pool, integration, and verification. Keep it in `RUN_ARTIFACT_DIR` and update it in place; it is the only place that defines what an implementer may write and how its work is accepted.
@@ -42,6 +70,7 @@ Maintain `issue-ledger.md` as the canonical multi-issue inventory. Each row or s
 ```yaml
 run:
   artifact_dir: <absolute RUN_ARTIFACT_DIR>
+  repair_round: <positive integer>
   repair_type: MINIMAL | STRUCTURAL | MIXED
   implementation_mode: SINGLE | POOLED
   integration_required: false | true
@@ -75,6 +104,7 @@ Required properties:
 - `depends_on` references only task IDs from an earlier wave; a task is dispatchable only after every dependency ended as `DONE` or an acceptance-supported `NO_CHANGE` and its worker termination was confirmed.
 - `acceptance` must be checkable by stage 6 without reinterpretation; a task without acceptance conditions is not dispatchable.
 - `status` and `attempt` are updated in place by the coordinator only before dispatch or after the whole active wave stops; `attempt: 0` means not yet dispatched, and the first dispatch sets it to `1`. Never rewrite history to hide a failed task.
+- `run.repair_round` identifies the current orchestration cycle. Advancing it refreshes diagnosis and planning state but never resets a task, issue, or shared-direction attempt counter.
 - Map a task artifact's `TASK_IMPLEMENTATION_STATUS: COMPLETE` to `tasks.yaml` status `DONE`; the other shared names map directly. `PARTIAL` is terminal evidence but not dependency-complete, so its task-contract status is `BLOCKED` unless a retry is still pending.
 - The union of all task `file_scope` entries and `run.integration_scope` stays inside the frozen `SELECTED_ISSUES` and the authorized file boundary; anything outside returns to triage and selection. An integrator must not write when `integration_scope` is empty.
 
@@ -84,6 +114,7 @@ Related run artifacts:
 - `implementation/tasks/<TASK-ID>.md` — one record per dispatched task;
 - `implementation.md` — the coordinator-owned aggregate of the implementation phase;
 - `integration.md` — the assembly record, required whenever `integration_required` is `true`.
+- `verification/round-<NNN>.md` — immutable failure evidence for a non-passing round; `verification.md` remains the current aggregate/index and references these snapshots.
 
 ## Resume rules
 
@@ -102,6 +133,9 @@ RUN_CONTROL: AUTO | STEP
 ENTRY_SELECTION_INDEX: 1 | 2
 ARTIFACT_ROOT: <absolute project artifact root or system temporary root>
 RUN_ARTIFACT_DIR: <absolute collision-safe directory for this incident>
+REPAIR_ROUND: <positive integer>
+CONTEXT_GENERATION: <positive integer>
+CONTEXT_STATUS: READY | BLOCKED
 
 EVIDENCE_STATUS: COMPLETE | BLOCKED
 ISSUE_DISCOVERY_STATUS: COMPLETE | BOUNDED | BLOCKED

@@ -43,6 +43,19 @@ Apply the selected run-control mode from [confirmation.md](confirmation.md). In 
 
 Before dispatching or monitoring a subagent, follow [subagent-state.md](subagent-state.md) as the sole authority for task paths, checkpoints, observation, intervention, terminal preservation, and worker reclamation. Create the dispatch-ledger record required by [artifacts.md](artifacts.md) before dispatch. Do not change phase or exit until its result-consumption, runtime-termination, ledger, and visible-relay gates are complete; apply [the routing-disclosure contract](confirmation.md#subagent-routing-disclosure) to that relay.
 
+## Phase context reset
+
+The coordinator owns the active context at every stage boundary. It must rebuild that working set at the two mandatory reset points below instead of carrying the conversation or prior Agent reasoning forward:
+
+1. after planning is terminal-complete and before implementation is authorized or dispatched;
+2. after a repair-attributable verification failure and before the next diagnosis dispatch.
+
+At either point, write or atomically replace `<RUN_ARTIFACT_DIR>/active-context.md` using [the active-context contract](artifacts.md#active-context-and-repair-rounds). A reset is complete only when the capsule identifies the current source/worktree state, repair round, authorized scope, constraints, task state, next gate, and a small allowlist of authoritative artifact paths or precise sections. The coordinator then treats only that capsule, its allowlisted references, current repository instructions, and new user input as active working context. Conversation history, exploration narratives, rejected hypotheses, full command output, previous implementation reasoning, unrelated task results, and superseded plans remain on disk for audit but are not carried or reread by default.
+
+Use a runtime context-reset or compaction primitive when one is actually available. Its absence does not permit an unbounded handoff: perform the logical reset above, stop relying on unlisted conversational memory, and dispatch the next Agent with a fresh bounded context. Never claim that physical context was erased when the runtime cannot prove it. Reopen excluded history only to resolve a named contradiction or missing fact; first add that exact source and reason to `active-context.md`, then remove it from the allowlist at the next reset.
+
+`active-context.md` is an index, not another narrative summary. Point to canonical artifacts and exact failure records instead of copying them. If the capsule is stale, internally inconsistent, or too broad to identify the next bounded action, record `CONTEXT_STATUS: BLOCKED` and do not cross the phase gate.
+
 ## 1. Investigation
 
 Goal: establish reproducible facts without editing source.
@@ -105,6 +118,8 @@ Planning turns the frozen repair set into executable work. It runs after diagnos
 
 Enter planning only with `DIAGNOSIS_STATUS: COMPLETE`, `REPAIR_APPROVED: YES` for every selected issue, and a frozen, non-pending `SELECTED_ISSUES`.
 
+When the initially selected repair first enters planning, set `REPAIR_ROUND: 1` and append its `OPENED` event to `repair-rounds.md`. A later round enters planning only after its fresh diagnosis has reassessed the current state.
+
 ### Planning mode
 
 The coordinator chooses `PLANNING_MODE` before this stage starts and records it with the dispatch ledger:
@@ -152,6 +167,8 @@ In `debug` or `repair`, if planning produces no executable task, apply [Early-ex
 
 Consider expert escalation when the planner cannot produce a safe decomposition, dependencies are circular or unresolvable, every candidate violates file-disjointness, or the same plan direction has been rejected twice. Escalation follows the same authorization contract in [confirmation.md](confirmation.md); the expert is read-only and returns `PROCEED` or `RETURN_TO_DIAGNOSIS`.
 
+After `PLAN_STATUS: COMPLETE`, perform the mandatory planning-to-implementation context reset. Retain the final plan, `tasks.yaml`, frozen issue selection, approved invariants, repository and user constraints, current worktree snapshot, run state, and next implementation gate. Exclude planning exploration and all evidence not needed by a listed task. In `STEP` mode, build the capsule before presenting the implementation checkpoint, then revalidate its revision and worktree summary after approval; any drift returns to planning instead of dispatching against stale context.
+
 ## 4. Implementation
 
 Proceed only with `DIAGNOSIS_STATUS: COMPLETE`, `PLAN_STATUS: COMPLETE`, a valid per-issue approval, and an explicit repair-set choice under [multi-issue.md](multi-issue.md). Freeze `SELECTED_ISSUES` before writing. Newly discovered issues return to triage and selection rather than silently expanding implementation.
@@ -163,7 +180,7 @@ Keep each implementer's context small. Give it only:
 - a short incident summary and the frozen issue IDs its task covers;
 - its own `tasks.yaml` entry: task ID, exclusive file scope, dependencies, and acceptance conditions;
 - the relevant excerpts of `evidence.md`, `diagnosis.md`, and `plan.md` for that task, or their paths when an excerpt would be lossy;
-- repository instructions, the current working-tree snapshot, the run directory, and the attempt number;
+- repository instructions, the validated `active-context.md`, the current working-tree snapshot, the run directory, repair round, and attempt number;
 - its assigned `tasks/<task-id>/state.md` path, terminal handoff states, and the obligation to end its turn immediately after handoff.
 
 Do not pass the whole incident history, unrelated tasks, or unrelated artifacts merely for completeness; per-task context isolation is what keeps the pool cheap and reliable.
@@ -212,12 +229,14 @@ Produce `integration.md` with the tasks merged, conflicts and interface mismatch
 
 Verification is a separate judgment from implementation and integration. It runs in a delegated agent after every writer has stopped editing, and it judges only whether the result satisfies the requirement and the acceptance criteria.
 
-The verifier must not merge branches, resolve conflicts, repair defects, or edit source; it verifies and reports. Route each finding instead of fixing it:
+The verifier must not merge branches, resolve conflicts, repair defects, or edit source; it verifies and reports. Classify each finding by the phase that owns the correction:
 
-- a defect inside one task's file scope returns to implementation for that task;
-- a seam, interface, conflict, or missing-connection defect across tasks returns to integration;
-- an acceptance-condition, task-boundary, or wave-ordering defect returns to planning;
-- a requirement or repair-direction defect returns to diagnosis.
+- a defect inside one task's file scope is implementation-owned;
+- a seam, interface, conflict, or missing-connection defect across tasks is integration-owned;
+- an acceptance-condition, task-boundary, or wave-ordering defect is planning-owned;
+- a requirement or repair-direction defect is diagnosis-owned.
+
+This classification does not authorize a direct return to a writer. A repair-attributable failure follows the fresh diagnosis and planning loop below; the owner tells that loop which contract or repair surface must change.
 
 Validate progressively:
 
@@ -234,7 +253,19 @@ Diagnostic residue includes temporary logs, probes, breakpoints, debug-only bran
 
 Do not treat a passing unrelated test as proof. Classify failures as repair regression, implementation error, diagnosis error, environment problem, or pre-existing failure.
 
-Produce `verification.md` with per-issue commands and results, per-task acceptance-condition outcomes when the run was pooled, shared-root-cause symptom coverage, combined regression results, original reproduction outcome, recurrence-scan scope and findings, recurrence-triage state, diagnostic-residue check, unexplained failures, coverage limits, and `VERIFICATION_STATUS: PASS | PARTIAL | FAIL | BLOCKED`.
+Produce `verification.md` with per-issue commands and results, per-task acceptance-condition outcomes when the run was pooled, shared-root-cause symptom coverage, combined regression results, original reproduction outcome, recurrence-scan scope and findings, recurrence-triage state, diagnostic-residue check, unexplained failures, coverage limits, and `VERIFICATION_STATUS: PASS | PARTIAL | FAIL | BLOCKED`. When verification does not pass, also write an immutable, concise `verification/round-<NNN>.md` failure snapshot and make `verification.md` reference it; later rounds never overwrite that snapshot.
+
+### Verification-failure repair rounds
+
+`REPAIR_ROUND` starts at `1` when the first selected repair enters planning. A verification result of `FAIL`, or a `PARTIAL` result that identifies an in-scope repair defect, closes the current round as `VERIFICATION_FAILED`. Before any source writer is dispatched again, the coordinator must:
+
+1. reclaim the verifier and freeze the current `verification/round-<NNN>.md`, including the exact failing command/assertion, concise error, failure classification, affected issue/task IDs, current revision and worktree state;
+2. append the current round's `VERIFICATION_FAILED` event and the next round's `OPENED` event to `repair-rounds.md`, increment `REPAIR_ROUND`, and atomically rebuild `active-context.md` for `TARGET_PHASE: DIAGNOSIS` with only the current state and the immutable verification-failure references;
+3. start a fresh bounded diagnosis dispatch from that capsule, then run stage 3 again to refresh the plan and `tasks.yaml` before implementation.
+
+The new diagnosis must reassess the failure against the current code and may confirm the prior direction, but it must not inherit or assume the previous implementation reasoning. The refreshed plan may reuse stable task IDs only when their ownership and scope remain valid; it records which tasks are superseded, retained, or retried. Route classification still determines what the new diagnosis and plan must correct—task implementation, cross-task integration, decomposition/acceptance, or the repair direction—but verification failure never jumps directly back to a writer.
+
+`REPAIR_ROUND` is an orchestration cycle, not an attempt allowance. Incrementing it does not reset the per-issue, shared-direction, or task `attempt`; the two-attempt limit remains cumulative. A `BLOCKED` verification or a failure classified as purely environmental/pre-existing does not automatically open a source-repair round: preserve the evidence and stop or request the missing condition unless an in-scope repair defect is established. Newly discovered issues still require triage and repair selection before inclusion.
 
 ## 7. Independent review
 
