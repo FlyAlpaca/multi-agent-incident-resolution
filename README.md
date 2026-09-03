@@ -14,6 +14,35 @@
 
 角色职责、默认路由、上下文边界与交接见 [Agent 角色与交接规范](docs/agent-roles.md)；阶段的执行与早退语义见 [工作流协议](references/workflow.md)。
 
+## 架构概览
+
+```mermaid
+flowchart LR
+    U[用户请求 / 事件输入] --> G[入口确认与范围路由]
+    G --> C[协调者]
+    C --> I[调查]
+    I --> D[诊断]
+    D --> P[规划]
+    P --> R[修复选择]
+    R --> W[实施]
+    W --> T{是否需要集成}
+    T -- 是 --> X[集成]
+    T -- 否 --> V[验证]
+    X --> V
+    V --> Q[独立复核]
+    Q --> O[完成 / 正常早退]
+    V -. 修复失败：新轮次 .-> D
+
+    C -.-> A[(运行工件与状态)]
+    A -.-> I
+    A -.-> D
+    A -.-> P
+    A -.-> W
+    A -.-> V
+```
+
+完整架构图（包含角色边界、协议依赖、工件流转和退出清理）见 [`skill-architecture.md`](skill-architecture.md)。
+
 ## 核心约束
 
 - 入口菜单、单步检查点、修复选择和 Agent 升级统一使用 [确认协议](references/confirmation.md)。
@@ -60,3 +89,7 @@ sh scripts/sync-global-skill.sh
 ```
 
 涉及流程行为、路由、工件字段或确认语义时，同步更新其权威协议；其他文件只保留必要入口和链接，避免复制规则。
+
+## 许可证
+
+本项目采用 [Apache License 2.0](LICENSE) 开源协议。
