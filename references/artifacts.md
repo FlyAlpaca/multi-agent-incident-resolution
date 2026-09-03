@@ -19,7 +19,7 @@ Each record contains:
 - channel guards: any client transport limits for dispatch/result messages, kept separate from state and timeout decisions;
 - observation plan: initial wait, health-check cadence, credible next milestone, and coordinator-owned `OBSERVED_STATUS: NORMAL | FORCE_TERMINATION_ELIGIBLE`; apply the fixed threshold from [subagent-state.md](subagent-state.md) rather than copying it into each row;
 - decision and outcome: displayed upgrade choice/index when applicable, dispatch status, result status, terminal conclusion or blocker, `TASK_HANDOFF_STATUS: ACTIVE | TERMINAL | UNAVAILABLE`, and `USER_RELAY_STATUS: PENDING | RELAYED | NOT_DISPATCHED`;
-- execution lifecycle: coordinator-owned `WORKER_LIFECYCLE: ACTIVE | TERMINAL_CONFIRMED | TERMINATION_FAILED` and `TERMINAL_CONFIRMATION: RUNTIME_STATUS | EXPLICIT_CLOSE | EXPLICIT_INTERRUPT | UNAVAILABLE`, governed by [subagent-state.md](subagent-state.md#terminal-handling). Task handoff and worker termination are independent: a terminal result or self-report sets `TASK_HANDOFF_STATUS`, never `TERMINAL_CONFIRMATION`. `EXPLICIT_INTERRUPT` is a lifecycle action, not a message: for an active task it is reserved for explicit user cancellation, an independently enforced runtime/safety/authority stop, or force termination allowed by the fixed no-progress gate; for a terminal task whose worker remains runtime-live, it is an immediate reclamation mechanism that neither requires the threshold nor changes the recorded task outcome.
+- execution lifecycle: coordinator-owned `WORKER_LIFECYCLE: ACTIVE | TERMINAL_CONFIRMED | TERMINATION_FAILED` and `TERMINAL_CONFIRMATION: RUNTIME_STATUS | EXPLICIT_CLOSE | EXPLICIT_INTERRUPT | UNAVAILABLE`. Record task handoff separately from runtime termination and apply [the terminal-handling protocol](subagent-state.md#terminal-handling) without restating its stop or reclamation rules in the ledger.
 
 Use numeric units for counts, bytes, and durations. Channel guards are not work limits or timeout evidence. Preserve old rows without inventing historical values. Reuse the stored disclosure label verbatim. Record whether an upgrade used exact prior authorization or a displayed confirmation. Count every above-default proposal in `AGENT_UPGRADE_COUNT`; use `MIXED` when outcomes differ. Set `RELAYED` only after the terminal result is visible in the main conversation.
 
@@ -44,7 +44,11 @@ run:
   artifact_dir: <absolute RUN_ARTIFACT_DIR>
   repair_type: MINIMAL | STRUCTURAL | MIXED
   implementation_mode: SINGLE | POOLED
+  integration_required: false | true
   selected_issues: [ISSUE-001]
+  integration_scope:             # later-phase write boundary; task scopes plus planned shared seams
+    - path/to/file.ts
+    - path/to/shared-seam.ts
 tasks:
   - id: TASK-001
     title: <short actionable title>
@@ -67,18 +71,19 @@ tasks:
 Required properties:
 
 - Task IDs are stable for the whole run; never renumber or reuse one.
-- `file_scope` sets of tasks in the same wave must be disjoint, and no file may be owned by two tasks at any time.
-- `depends_on` references only task IDs from an earlier wave; a task is dispatchable only after every dependency is terminal-complete.
+- `file_scope` sets of tasks in the same wave must be disjoint, and no file may be owned by two tasks. Because integration begins only after all implementers stop, `integration_scope` normally contains the union of task scopes plus any planned shared seams; this later-phase overlap does not create concurrent ownership.
+- `depends_on` references only task IDs from an earlier wave; a task is dispatchable only after every dependency ended as `DONE` or an acceptance-supported `NO_CHANGE` and its worker termination was confirmed.
 - `acceptance` must be checkable by stage 6 without reinterpretation; a task without acceptance conditions is not dispatchable.
-- `status` and `attempt` are updated in place by the coordinator; never rewrite history to hide a failed task.
-- The union of all `file_scope` entries stays inside the frozen `SELECTED_ISSUES` and the authorized file boundary; anything outside returns to triage and selection.
+- `status` and `attempt` are updated in place by the coordinator only before dispatch or after the whole active wave stops; `attempt: 0` means not yet dispatched, and the first dispatch sets it to `1`. Never rewrite history to hide a failed task.
+- Map a task artifact's `TASK_IMPLEMENTATION_STATUS: COMPLETE` to `tasks.yaml` status `DONE`; the other shared names map directly. `PARTIAL` is terminal evidence but not dependency-complete, so its task-contract status is `BLOCKED` unless a retry is still pending.
+- The union of all task `file_scope` entries and `run.integration_scope` stays inside the frozen `SELECTED_ISSUES` and the authorized file boundary; anything outside returns to triage and selection. An integrator must not write when `integration_scope` is empty.
 
 Related run artifacts:
 
 - `plan.md` — the human-readable decomposition, dependency, parallel, integration, and verification strategy;
 - `implementation/tasks/<TASK-ID>.md` — one record per dispatched task;
 - `implementation.md` — the coordinator-owned aggregate of the implementation phase;
-- `integration.md` — the assembly record, required whenever more than one implementer wrote source.
+- `integration.md` — the assembly record, required whenever `integration_required` is `true`.
 
 ## Resume rules
 
@@ -127,6 +132,7 @@ TASKS_DONE: <non-negative integer>
 IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED
 ATTEMPT: 1 | 2 | MIXED
 
+INTEGRATION_REQUIRED: YES | NO
 INTEGRATION_STATUS: SKIPPED | COMPLETE | PARTIAL | BLOCKED
 
 VERIFICATION_STATUS: PASS | PARTIAL | FAIL | BLOCKED
@@ -141,7 +147,7 @@ DECISION: PASS | FAIL | BLOCKED
 
 ## Required markers by mode
 
-- `DEBUG` normally requires run metadata and all investigation, diagnosis, repair-selection, planning (`PLANNING_MODE` and `PLAN_STATUS`), implementation, integration, verification, recurrence, residue, and review markers. `INTEGRATION_STATUS: SKIPPED` is required, not omitted, when only one implementer wrote source; an integration phase skipped by a valid early exit stays unmarked. When `EARLY_EXIT_REASON` is not `NONE`, require only the markers for phases actually run plus the terminal early-exit markers; do not fabricate skipped-phase markers.
+- `DEBUG` normally requires run metadata and all investigation, diagnosis, repair-selection, planning (`PLANNING_MODE` and `PLAN_STATUS`), implementation, integration, verification, recurrence, residue, and review markers. Planning records `INTEGRATION_REQUIRED: NO` for `SINGLE` and `YES` for `POOLED`; `NO` requires `INTEGRATION_STATUS: SKIPPED`, while `YES` requires a terminal integration result even if some implementation tasks made no change. An integration phase skipped by a valid early exit stays unmarked. When `EARLY_EXIT_REASON` is not `NONE`, require only the markers for phases actually run plus the terminal early-exit markers; do not fabricate skipped-phase markers.
 - `DIAGNOSE` normally requires run metadata plus investigation and diagnosis markers. Record repair selection as `PENDING` or `NONE` when it is discussed, but planning, implementation, integration, verification, and review markers are not required; `PLANNING_MODE: SKIPPED` and `PLAN_STATUS: SKIPPED` when they are recorded. If investigation exits with `EARLY_EXIT_REASON: NO_ISSUE`, diagnosis markers are not required. Finishing diagnosis with no actionable repair is normal scope completion, not an early exit, because standalone `diagnose` never included planning or implementation.
 - `REPAIR` normally requires run metadata, a validated diagnosis and repair selection from current artifacts, then planning, implementation, integration, verification, recurrence, residue, and review markers. A diagnosis or selection early exit omits later markers. `CHANGE_ALREADY_PRESENT` still requires implementation and focused-verification markers, but not integration, recurrence, residue, or review markers when this run made no source change.
 - `REVIEW` normally requires run metadata plus `REVIEW_STATUS`, `REVIEW_INDEPENDENCE`, and `DECISION`. Earlier-phase markers are optional; when absent, state the resulting coverage limitation. `EMPTY_REVIEW_SCOPE` may stop after resolving the comparison target and confirming its diff is empty; review-result markers are then unnecessary, and no findings may be invented.
@@ -158,7 +164,7 @@ Use `REPAIR_SELECTION: PENDING` for diagnosis-only output before the user choose
 
 `EARLY_EXIT_PHASE: DIAGNOSIS` is stage 2 only; `PLANNING` is stage 3, used when planning produced no executable task. `PLANNING_MODE: SKIPPED` and `PLAN_STATUS: SKIPPED` apply only when planning never ran, such as a `NO_ISSUE` exit, a `BLOCKED` diagnosis, a `NO_REPAIR_SELECTED` exit, a standalone `diagnose`, or a standalone `review`; never use them to hide an unfinished plan.
 
-`PLANNING_MODE: INLINE` means the diagnostician produced the plan in the same dispatch and keeps its original canonical label; it does not add a second Agent record to the dispatch ledger. `DEDICATED` means a separate planner Agent was dispatched with its own label, task path, and terminal handoff. Record the mode once, before stage 3 starts; a mid-stage switch from `INLINE` to `DEDICATED` keeps the original mode value and records the switch reason and the new dispatch. `IMPLEMENTATION_MODE: SINGLE` with `IMPLEMENTER_COUNT: 1` and `INTEGRATION_STATUS: SKIPPED` is a normal minimal repair, not a degraded one; record why integration was unnecessary. `TASKS_DONE` counts only tasks whose acceptance conditions were met, so a run is not complete while `TASKS_DONE` is below `TASKS_TOTAL` unless the remainder is explicitly triaged, deferred, or blocked.
+`PLANNING_MODE: INLINE` means the diagnostician also produced the plan and keeps its original canonical Agent label; it does not create a distinct planner identity. If repair selection or a single-step checkpoint separates stages 2 and 3, the resumed planning turn still requires its own dispatch-ledger record and task-state path. `DEDICATED` means a separate planner Agent was dispatched with its own label, task path, and terminal handoff. Record the mode once before stage 3 starts; a switch from `INLINE` to `DEDICATED` records the switch reason and new dispatch rather than rewriting the earlier decision. `IMPLEMENTATION_MODE: SINGLE` requires `IMPLEMENTER_COUNT: 1`, `INTEGRATION_REQUIRED: NO`, and `INTEGRATION_STATUS: SKIPPED`; this is a normal minimal repair, not a degraded one. `POOLED` requires `INTEGRATION_REQUIRED: YES`, independent of how many workers ultimately changed files. `TASKS_DONE` counts only tasks whose acceptance conditions were met, so a run is not complete while `TASKS_DONE` is below `TASKS_TOTAL` unless the remainder is explicitly triaged, deferred, or blocked.
 
 ## Evidence quality
 

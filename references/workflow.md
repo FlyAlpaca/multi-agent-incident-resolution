@@ -1,8 +1,8 @@
 # Workflow
 
-Use all applicable stages for `debug`, stages 1-2 for standalone `diagnose`, stages 4-7 for `repair`, and stage 7 for standalone `review`, unless an early-exit rule below applies. At `repair` entry, validate and normalize a supplied diagnosis into the required run artifacts, resolve the repair selection, and derive the plan and `tasks.yaml` when they are missing; re-enter stages 1-3 only when the diagnosis or plan is stale or incomplete, or when later evidence invalidates the repair direction. A standalone `review` remains project-source read-only and never transitions into diagnosis, planning, or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
+Use all applicable stages for `debug`, stages 1-2 for standalone `diagnose`, stages 3-7 for `repair`, and stage 7 for standalone `review`, unless an early-exit rule below applies. At `repair` entry, validate and normalize the supplied diagnosis and repair selection, then enter stage 3 to create or refresh `plan.md` and `tasks.yaml`; return to stages 1-2 only when the diagnosis is stale or incomplete, or when later evidence invalidates the repair direction. A standalone `review` remains project-source read-only and never transitions into diagnosis, planning, or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
 
-The seven stages are: 1 Investigation, 2 Diagnosis, 3 Planning, 4 Implementation, 5 Integration, 6 Verification, and 7 Independent review. Stage 5 is conditional: it runs only when more than one implementer wrote source.
+The seven stages are: 1 Investigation, 2 Diagnosis, 3 Planning, 4 Implementation, 5 Integration, 6 Verification, and 7 Independent review. Stage 5 is conditional: planning sets `INTEGRATION_REQUIRED: NO` for `SINGLE` implementation and `YES` for `POOLED` implementation.
 
 Stages 2 and 3 always decide different questions—stage 2 decides what is wrong, stage 3 decides how the approved repair is executed—but they do not always run in different Agents. A minimal repair keeps planning inline in the same diagnostician; a structural or multi-task repair moves it to a dedicated planner with its own context.
 
@@ -37,13 +37,11 @@ The current run directory is disposable only under [Run artifact cleanup](#run-a
 
 Before delegating, record the incident input and workspace root. Every phase must read the same incident input and applicable repository instructions. Later phases read prior artifact files rather than receiving a rewritten narrative.
 
-Apply the selected run-control mode from [confirmation.md](confirmation.md). In **单步确认** mode, stop before stages 1-7 and before every Agent switch or parallel Agent batch; present the required checkpoint and wait. A phase terminal marker does not authorize the next phase. Planning has its own checkpoint before the implementation checkpoint, because a different Agent produces `plan.md` and `tasks.yaml`. Confirm one implementer wave as one packaged batch only when its tasks have disjoint file scopes; confirm integration as its own checkpoint.
+Apply the selected run-control mode from [confirmation.md](confirmation.md). In **单步确认** mode, stop before stages 1-7 and before every Agent switch or parallel Agent batch; present the required checkpoint and wait. A phase terminal marker does not authorize the next phase. Planning has its own stage checkpoint before the implementation checkpoint even when `INLINE` reuses the diagnostician; `DEDICATED` planning additionally introduces a new Agent route. Confirm one implementer wave as one packaged batch only when its tasks have disjoint file scopes; confirm integration as its own checkpoint.
 
 ## Subagent state, liveness and result visibility
 
-Before dispatching or monitoring a subagent, follow [the subagent state and timeout protocol](subagent-state.md) as the sole authority for task paths, work-step checkpoints, lifecycle state, observation thresholds, lifecycle-stop exceptions, and terminal preservation. Resolve its task paths under the current `<RUN_ARTIFACT_DIR>` and create the dispatch-ledger record required by [artifacts.md](artifacts.md) before dispatch. Pass the state path, checkpoint obligations, terminal handoff states, and immediate terminal-turn exit obligation in the assignment. While the task is active, observe passively and keep coordinator observations in the ledger rather than rewriting its state or sending follow-up messages. On terminal handoff, record the task gate and immediately reclaim a worker that remains runtime-live; never treat handoff evidence as proof of runtime termination.
-
-Before changing phase or exiting, complete the result-consumption, runtime-terminal-confirmation, ledger, and visible-relay gates in [subagent-state.md](subagent-state.md#terminal-handling). Apply [the routing-disclosure contract](confirmation.md#subagent-routing-disclosure) to the relay.
+Before dispatching or monitoring a subagent, follow [subagent-state.md](subagent-state.md) as the sole authority for task paths, checkpoints, observation, intervention, terminal preservation, and worker reclamation. Create the dispatch-ledger record required by [artifacts.md](artifacts.md) before dispatch. Do not change phase or exit until its result-consumption, runtime-termination, ledger, and visible-relay gates are complete; apply [the routing-disclosure contract](confirmation.md#subagent-routing-disclosure) to that relay.
 
 ## 1. Investigation
 
@@ -74,10 +72,10 @@ Use an independent diagnosis Agent, default `gpt-5.6-sol/medium`. It must read t
 
 Diagnosis answers what is broken, why, and how far it reaches. Whether it also plans depends on `PLANNING_MODE`:
 
-- `PLANNING_MODE: INLINE` — the default for a `MINIMAL` repair. The same diagnostician continues into stage 3 in the same dispatch and context, and appends `plan.md` and a single-task `tasks.yaml`. It designs no refactor, creates no waves, and stops at one task.
+- `PLANNING_MODE: INLINE` — the default for a `MINIMAL` repair. The same diagnostician and context own stage 3 and produce `plan.md` plus a single-task `tasks.yaml`. It may continue in the same dispatch only when the repair set is already frozen and no run-control checkpoint intervenes; otherwise it hands off after diagnosis and is resumed for a new bounded planning dispatch after the gate. It designs no refactor, creates no waves, and stops at one task.
 - `PLANNING_MODE: DEDICATED` — a separate planner Agent owns stage 3 with its own context. The diagnostician then stops at cause and impact: it does not decompose work, does not design the target structure, does not choose execution order, and must not produce `plan.md` or `tasks.yaml`.
 
-The coordinator decides the mode before stage 3 starts, using [the planning-mode rule](#planning-mode).
+The coordinator resolves and records the mode from the completed diagnosis before stage 3 starts, using [the planning-mode rule](#planning-mode). A diagnostician may recommend a mode, but it cannot cross a pending repair-selection or single-step gate on its own.
 
 Produce `diagnosis.md` with:
 
@@ -113,12 +111,12 @@ The coordinator chooses `PLANNING_MODE` before this stage starts and records it 
 
 | Mode | When | Who runs stage 3 | Route |
 |---|---|---|---|
-| `INLINE` | `MINIMAL`, one selected issue or one shared repair direction, and a single-module blast radius | the same diagnostician, continuing its existing dispatch and context | `gpt-5.6-sol/medium` |
+| `INLINE` | `MINIMAL`, one selected issue or one shared repair direction, and a single-module blast radius | the same diagnostician and retained context; a gate may require a new bounded dispatch | `gpt-5.6-sol/medium` |
 | `DEDICATED` | `STRUCTURAL` or `MIXED`; more than one selected issue with distinct file scopes; multi-module, migration, or deletion work; parallel implementation requested; or the user asks for a refactor plan | a separate planner Agent with its own context | `gpt-5.6-luna/max` |
 
-Default to `INLINE`. The point of the split is context isolation for large changes, not ceremony for small ones: a one-task repair must not pay for an extra dispatch and a fresh context.
+Default to `INLINE`. The point of the split is context isolation for large changes, not ceremony for small ones: a one-task repair does not need a separate planner identity or fresh context.
 
-In `INLINE` mode the diagnostician writes `diagnosis.md`, then `plan.md` and a one-task `tasks.yaml` in the same turn sequence, reusing the canonical label it was dispatched with. If it discovers that the repair needs more than one task, dependency waves, or an integration step, it must stop planning, record `PLAN_STATUS: BLOCKED` with the evidence, and hand back to the coordinator, which switches the run to `DEDICATED` and dispatches a planner. It must not stretch an inline plan into a multi-task decomposition.
+In `INLINE` mode the diagnostician also writes `plan.md` and a one-task `tasks.yaml`, reusing its canonical Agent label. When repair selection or a single-step checkpoint interrupts the stage transition, it first completes the diagnosis handoff; after the gate, the coordinator resumes the same Agent/context with a new bounded planning dispatch, ledger record, and task-state path. If it discovers that the repair needs more than one task, dependency waves, or an integration step, it must stop planning, record `PLAN_STATUS: BLOCKED` with the evidence, and hand back to the coordinator, which switches the run to `DEDICATED` and dispatches a planner. It must not stretch an inline plan into a multi-task decomposition.
 
 In `DEDICATED` mode the planner reads the incident input, `evidence.md`, `diagnosis.md`, `issue-ledger.md`, applicable repository instructions, and the current diff; it may inspect source read-only to find seams, callers, and dependency boundaries. It does not inherit the diagnostician's working memory.
 
@@ -136,7 +134,7 @@ Produce `plan.md` with:
 - risk, blast radius, rollback approach, and the verification strategy for stage 6;
 - `PLAN_STATUS: COMPLETE | BLOCKED`.
 
-Produce `tasks.yaml` using [the task-contract schema](artifacts.md#task-contract). It contains every subtask with its owner, exclusive file scope, dependencies, wave, and acceptance conditions. A task is dispatchable only when its owner, scope, and acceptance conditions are explicit.
+Produce `tasks.yaml` using [the task-contract schema](artifacts.md#task-contract). It contains every subtask with its owner, exclusive file scope, dependencies, wave, and acceptance conditions, plus `integration_required` and the integrator's allowed `integration_scope`. A task is dispatchable only when its owner, scope, and acceptance conditions are explicit; integration is writable only when its scope is explicit.
 
 In `INLINE` mode the dependency graph, waves, and parallel strategy collapse to one line each: one task, one wave, one implementer. Record them in that form instead of omitting them, so the task contract stays uniform across both modes.
 
@@ -144,9 +142,9 @@ Size the decomposition to the repair type:
 
 - `MINIMAL` normally yields one task; keep `IMPLEMENTATION_MODE: SINGLE` unless two clearly separable, file-disjoint units exist.
 - `STRUCTURAL` or `MIXED` normally yields several tasks with explicit waves; use `IMPLEMENTATION_MODE: POOLED` only when at least two tasks have disjoint file scopes.
-- Tasks that must touch the same file belong to one task or are split across an integration-owned seam, never to two concurrent implementers.
+- Tasks that must touch the same file belong to one task or leave that shared seam for the later integrator, never to two implementers. The later `integration_scope` may include task-owned files because every implementer has stopped before integration.
 
-Every task in `tasks.yaml` must carry an acceptance condition that stage 6 can execute or check, and the union of task scopes must cover the approved repair while staying inside the frozen `SELECTED_ISSUES` and the authorized file boundary.
+Every task in `tasks.yaml` must carry an acceptance condition that stage 6 can execute or check, and the union of task scopes plus `integration_scope` must cover the approved repair while staying inside the frozen `SELECTED_ISSUES` and the authorized file boundary.
 
 A request for a plan without code changes is not a separate run mode: run `debug` or `repair` to this stage, then stop or pause at the planning checkpoint. `plan.md` and `tasks.yaml` are retained as deliverables, and no implementer is dispatched.
 
@@ -183,7 +181,7 @@ Every implementer must:
 - follow repository-specific environment and commit rules;
 - leave cross-task seams, interface mismatches, and out-of-scope defects recorded instead of fixing them.
 
-Each implementer produces `implementation/tasks/<TASK-ID>.md` with its task ID, covered issue IDs, attempt number, files changed, behavioral differences, deviations from the task contract, tests added, unresolved seams handed to integration, and `TASK_IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED`.
+Each implementer produces `implementation/tasks/<TASK-ID>.md` with its task ID, covered issue IDs, attempt number, files changed, behavioral differences, deviations from the task contract, tests added, unresolved seams handed to integration, and `TASK_IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED | FAILED | CANCELLED`.
 
 The coordinator aggregates the per-task records into `implementation.md` containing the selected issue IDs, `IMPLEMENTATION_MODE`, `IMPLEMENTER_COUNT`, outcome per task ID, per-issue or shared-direction attempt numbers, files changed, behavioral differences, deviations from diagnosis or plan, tests added, seams handed to integration, and `IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED`.
 
@@ -193,13 +191,13 @@ If the implementer finds that the approved repair may already be present, use `I
 
 ## 5. Integration
 
-Integration is a conditional assembly phase, not a second implementation. It runs only when more than one implementer wrote source; otherwise record `INTEGRATION_STATUS: SKIPPED` with the reason and go to stage 6.
+Integration is a conditional assembly phase, not a second implementation. Run it when `INTEGRATION_REQUIRED: YES`, after the whole implementer pool has stopped, even if one or more tasks ended `NO_CHANGE`. When it is `NO`, record `INTEGRATION_STATUS: SKIPPED` with the reason and go to stage 6. Do not infer this gate afterward from the number of files or workers that happened to write.
 
-Assign exactly one integrator, and let it be the only source writer while it runs. Give it the incident input, `plan.md`, `tasks.yaml`, every `implementation/tasks/<TASK-ID>.md`, the frozen `SELECTED_ISSUES`, the current diff, and the integration strategy from `plan.md`.
+Assign exactly one integrator after every implementer worker has stopped, and let it be the only source writer while it runs. Give it the incident input, `plan.md`, `tasks.yaml`, every `implementation/tasks/<TASK-ID>.md`, the frozen `SELECTED_ISSUES`, the current diff, and the integration strategy from `plan.md`. Its write authority is limited to `run.integration_scope`; an additional required path returns to planning instead of being edited opportunistically.
 
 The integrator must:
 
-- merge the subtask results into one coherent change;
+- assemble the already-shared working-tree changes into one coherent result;
 - resolve conflicts and duplicated or divergent edits introduced by parallel implementers;
 - repair interface, signature, type, contract, and naming mismatches across task boundaries;
 - complete missing wiring: call sites, registration, exports, routes, migrations, configuration, and documentation cross-references;
@@ -297,7 +295,7 @@ For multiple selected issues or pooled tasks, group details by issue ID or task 
 
 Cleanup is part of a normal or early `RUN_CONTROL: AUTO` or `RUN_CONTROL: STEP` completion, after every required result has been consumed and the complete `处理总结` has been synthesized in memory, but before sending the workflow-exit response. It does not run for partial, failed, blocked, stopped, cancelled, or paused exits. If no run artifacts were created, report cleanup as not applicable.
 
-Invoke `scripts/cleanup-run-artifacts.sh` with the explicit recorded `ARTIFACT_ROOT` and `RUN_ARTIFACT_DIR`. The script must validate that both paths are absolute existing directories, neither target is a symbolic link or broad root, and the run directory is exactly one direct child of `<ARTIFACT_ROOT>/multi-agent-incident-resolution/`. Never replace these arguments with a glob, unresolved environment variable, current directory, workspace root, shared namespace directory, or inferred path. The script removes the current run directory and prunes the skill namespace directory only when it becomes empty; it never removes `ARTIFACT_ROOT`.
+Invoke `sh scripts/cleanup-run-artifacts.sh` with the explicit recorded `ARTIFACT_ROOT` and `RUN_ARTIFACT_DIR`. The script must validate that both paths are absolute existing directories, neither target is a symbolic link or broad root, and the run directory is exactly one direct child of `<ARTIFACT_ROOT>/multi-agent-incident-resolution/`. Never replace these arguments with a glob, unresolved environment variable, current directory, workspace root, shared namespace directory, or inferred path. The script removes the current run directory and prunes the skill namespace directory only when it becomes empty; it never removes `ARTIFACT_ROOT`.
 
 After cleanup, perform a read-only existence check of the exact run directory. Report `中间产物清理: 已清理（<RUN_ARTIFACT_DIR>）` only when it is absent. If validation or deletion fails, do not broaden the target or retry with a less restrictive command; report `中间产物清理: 失败` with the retained exact path and concise reason. Cleanup failure changes the completed run's exit state to partial because the user-requested lifecycle is incomplete, while preserving all repair and verification conclusions already synthesized.
 
