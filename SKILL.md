@@ -82,6 +82,20 @@ The workflow uses seven roles; the implementer may expand into a pool of N paral
 
 Allow at most two implementation attempts per selected issue, shared repair direction, or pooled subtask; a subtask retry counts toward the limit of the repair direction it belongs to. Stop and report when the same direction fails twice, diagnosis remains low-confidence after targeted investigation and permitted escalation, required external state is unavailable, authority is insufficient, user changes cannot be preserved, or verification cannot distinguish the repair from a pre-existing/environmental failure. Do not hide deterministic failures with retries, longer timeouts, swallowed exceptions, or weaker tests.
 
+## 失败与兜底（早退速查）
+
+每个阶段结束都要先套用权威 [early-exit rules](references/workflow.md#early-exit-rules)；命中即终止，不得伪造后续阶段为通过。常见早退：
+
+| 触发条件 | `EARLY_EXIT_REASON` | 退出前须做 |
+|---|---|---|
+| 调查未发现可信缺陷或可执行问题 | `NO_ISSUE` | 固化调查工件后退出，不派诊断 |
+| 诊断后无已批准的可执行修复 | `NO_ACTIONABLE_REPAIR` | 记录逐问题分类与原因 |
+| 用户未选择任何修复 | `NO_REPAIR_SELECTED` | 记录 `SELECTED_ISSUES: NONE` |
+| 已存在修复且聚焦验证通过 | `CHANGE_ALREADY_PRESENT` | `IMPLEMENTATION_STATUS: NO_CHANGE` + 聚焦验证 |
+| 独立 review 范围内无改动 | `EMPTY_REVIEW_SCOPE` | 确认对比目标 diff 为空 |
+
+同一方向两次失败、置信度仍低、所需外部状态不可用或权限不足时，停止并报告；不得用重试、更长超时或吞异常掩盖确定性失败。
+
 ## 红线（禁止行为）
 
 无论范围、模式或阶段，以下行为一律禁止；具体机制以对应 references 中的权威协议为准，本节能不重复定义。
