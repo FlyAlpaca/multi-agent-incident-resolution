@@ -28,6 +28,17 @@ A terminal handoff does not prove the worker stopped. A terminal worker that rem
 | terminal signal | stopped | consume and reconcile the handoff |
 | active, missing, or stale | stopped | retain available evidence and finalize an abnormal terminal handoff; do not wait for the no-progress threshold |
 
+## Pooled dispatch and exclusive scope
+
+A dispatch is either a solo task or one member of an implementer pool. Pool rules:
+
+- one `<task-id>` directory per task; never share a task path between two workers, and never reuse a task path for a reassignment;
+- dispatch waves in dependency order: start a wave only after every task in earlier waves reached a terminal handoff and its worker was reclaimed;
+- every member receives its exclusive `file_scope` from `tasks.yaml`, writes only inside it, and reports any needed out-of-scope write as a blocker instead of performing it;
+- the coordinator stays passive for the whole wave, so a scope conflict discovered mid-wave is resolved at integration, or by replanning after the wave is reclaimed, never by messaging an active member;
+- a terminal task does not by itself release dependent tasks; wait until its whole wave is terminal and reconciled;
+- a member's `result.md` names its task ID, the files actually written, its acceptance-condition self-check, and every seam left for integration.
+
 ## Work plan and checkpoints
 
 At task start, divide the assignment into a small number of outcome-oriented work steps and persist the plan in `state.md`. Use enough steps to expose meaningful progress and recovery points; a simple task may need only one or two, while a complex task may need several. Do not turn individual commands, reads, or searches into work steps.
