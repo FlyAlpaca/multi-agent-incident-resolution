@@ -32,6 +32,8 @@ Read only the references required for that scope:
 
 🔴 CHECKPOINT · 阶段门禁：每次阶段切换前套用 [early-exit rules](references/workflow.md#early-exit-rules)；被规则跳过的阶段不得派发工作或发出通过标记。
 
+🔴 CHECKPOINT · 上下文重置：规划完成进入实施前，以及验证失败开启新修复轮次前，由当前协调者按 [phase context reset](references/workflow.md#phase-context-reset) 原子重建 `active-context.md`；未达到 `CONTEXT_STATUS: READY` 不得派发下一阶段。
+
 ## Establish the evidence and safety envelope
 
 Before mutation:
@@ -75,7 +77,7 @@ The workflow uses seven roles; the implementer may expand into a pool of N paral
 
 🔴 CHECKPOINT · 高影响边界：本地无损验证与有证据支撑的界内修复无需额外审批；但部署、外部写入、破坏性删除、改写历史、凭据变更、采购或生产变更等高影响动作，必须获得明确授权方可越过。
 
-Allow at most two implementation attempts per selected issue, shared repair direction, or pooled subtask; a subtask retry counts toward the limit of the repair direction it belongs to. Stop and report when the same direction fails twice, diagnosis remains low-confidence after targeted investigation and permitted escalation, required external state is unavailable, authority is insufficient, user changes cannot be preserved, or verification cannot distinguish the repair from a pre-existing/environmental failure. Do not hide deterministic failures with retries, longer timeouts, swallowed exceptions, or weaker tests.
+Allow at most two implementation attempts per selected issue, shared repair direction, or pooled subtask; a subtask retry counts toward the limit of the repair direction it belongs to. Every repair-attributable verification failure starts a new `REPAIR_ROUND` through fresh diagnosis and planning, but does not reset any attempt counter. Stop and report when the same direction fails twice, diagnosis remains low-confidence after targeted investigation and permitted escalation, required external state is unavailable, authority is insufficient, user changes cannot be preserved, or verification cannot distinguish the repair from a pre-existing/environmental failure. Do not hide deterministic failures with retries, longer timeouts, swallowed exceptions, or weaker tests.
 
 ## Complete or exit
 
