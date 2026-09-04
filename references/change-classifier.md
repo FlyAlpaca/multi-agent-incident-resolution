@@ -35,21 +35,21 @@ dependency:
 
 1. 任一风险或依赖字段为 `true`，或 `affected_files > 5`，或 `estimated_changes > 200`，结果为 `COMPLEX`。
 2. 只有同时满足以下条件才是 `TINY`：写入目标明确；`affected_files == 1`；`affected_paths` 恰好一个；`estimated_changes <= 20`；全部风险和依赖字段都明确为 `false`。
-3. 其余情况为 `NORMAL`。字段缺失、未知或彼此不一致时同时记录 `INCOMPLETE`：可以先调查和诊断，但写入前必须补齐信封并重新求值；仍无法完成时阻塞，不能借未知值进入 `TINY` 或无证据升级。
+3. 其余情况为 `NORMAL`。字段缺失、未知或彼此不一致时同时记录 `INCOMPLETE`：可以先由 Diagnoser 合并调查和诊断，但写入前必须补齐信封并重新求值；仍无法完成时阻塞，不能借未知值进入 `TINY` 或无证据升级。
 
 这些阈值是唯一的路线判定规则，不随用户措辞变化。
 
-分类器的 `classification` 与诊断阶段的 `REPAIR_TYPE: MINIMAL | STRUCTURAL | MIXED` 互不替代：前者决定需要哪些流程角色，后者描述已确认根因应采用的修复形态。诊断员仍负责后者，不负责前者。
+分类器的 `classification` 与诊断阶段的 `REPAIR_TYPE: MINIMAL | STRUCTURAL | MIXED` 互不替代：前者决定需要哪些流程角色，后者描述已确认根因应采用的修复形态。Diagnoser 仍负责后者，不负责前者。
 
 ## 路由契约
 
 | 分类 | `debug` / `repair` 路线 | 明确省略 | 写入前硬门槛 |
 |---|---|---|---|
-| `TINY` | 入口协调者物化单任务契约 → 一个实施 Agent → 协调者快速只读验证 | 调查、诊断、规划、集成 Agent、独立复核 | 只能是单文件、`SINGLE`、`INTEGRATION_REQUIRED: NO`；任务必须有精确 `file_scope` 和可检查的验收条件 |
-| `NORMAL` | `debug` 先调查、诊断；`repair` 校验已有诊断；之后 `INLINE` 规划 → 一个实施 Agent → 验证 Agent | 集成 Agent、独立复核 | 写入前所有指标必须确认且无复杂条件；必须仍是一个完整修复闭环，否则先升级 |
-| `COMPLEX` | `debug` 先调查、诊断；`repair` 校验已有诊断；之后独立规划 → 实施 → 按需集成 → 验证 → 独立复核 | 无 | 规划使用 `DEDICATED`；只有 `POOLED` 才执行集成。是否拆分仍遵守任务闭环与并行安全条件 |
+| `TINY` | 协调者物化单任务契约 → 一个实施 Agent → 协调者快速验证 | 调查、诊断、规划、集成 Agent、独立复核 | `TASK_CONTRACT_MODE: COORDINATOR`；只能是单文件、`SINGLE`、`INTEGRATION_REQUIRED: NO` |
+| `NORMAL` | 一个只读 Diagnoser 合并调查、诊断与简单修复契约 → 一个实施 Agent → 协调者基础验证；按条件升级独立验证 Agent | 独立调查 Agent、规划 Agent、默认验证 Agent、集成 Agent、独立复核 | `TASK_CONTRACT_MODE: DIAGNOSER_INLINE`；规划跳过；必须保持最小、单任务、单模块完整修复闭环 |
+| `COMPLEX` | 独立调查、诊断与规划 → 实施 → 按需集成 → 验证 → 独立复核；`repair` 可复用有效诊断 | 无 | `TASK_CONTRACT_MODE: PLANNER`、`PLANNING_MODE: DEDICATED`；只有 `POOLED` 执行集成 |
 
-`TINY` 不经过阶段 3，但协调者仍从已确认的信封生成一个最小 `tasks.yaml`；这是写入边界和验收条件登记，不是规划。`NORMAL` 的 `INLINE` 规划仍受修复选择、任务契约和上下文门禁约束。入口、权限、高影响操作和安全边界不会因分类而消失。
+三条路线一旦进入实施都必须先生成 `tasks.yaml`，但任务契约所有者不同；只有 `COMPLEX` 进入规划阶段并创建 `plan.md`。任务字段和终态标记以 [artifacts.md](artifacts.md#task-contract) 为准。入口、权限、高影响操作和安全边界不会因分类而消失。
 
 集成由任务拓扑唯一决定：`SINGLE -> INTEGRATION_REQUIRED: NO`，`POOLED -> INTEGRATION_REQUIRED: YES`。`COMPLEX` 要求独立规划和独立复核，但不为单任务额外设置集成写入阶段。
 
@@ -65,7 +65,7 @@ dependency:
 - 发现跨模块、公开接口、数据库/数据结构、架构、并发、生命周期或外部依赖影响；
 - `TINY` 实施 Agent 发现需要重新设计、第二个独立修复闭环或共享接缝；
 - `TINY` 快速验证发现界内失败，且不能在原单文件边界内可靠解决；
-- `NORMAL` 的诊断/规划无法保持单任务、单模块、无集成的执行形态；
+- `NORMAL` 的合并诊断无法保持最小修复、单任务、单模块、无集成的执行形态；
 - 验证失败表明问题属于修复方向、任务边界或跨模块装配，而非环境或既有基线。
 
 升级时：
@@ -73,7 +73,7 @@ dependency:
 1. 先让当前 Agent 完成终态交接并回收；活动的实施 Agent 不能通过追加指令改造路线。
 2. 在 `classification.md` 追加新指标、触发条件、旧/新分类、当前版本标识和影响阶段；不覆盖旧结论。
 3. 在下一阶段门禁前由协调者重新校验分类和授权。已完成且仍有效的调查/诊断证据可以复用，但不为改标签而重复阶段。
-4. `TINY` 升级到 `NORMAL` 后补充调查、诊断和规划；`NORMAL` 升级到 `COMPLEX` 后使用独立规划 Agent 和独立复核 Agent，若任务拓扑升级为 `POOLED` 再执行集成。
-5. `TINY` 快速验证的界内失败按验证失败修复轮次保存不可变证据，再进入 `NORMAL` 的新诊断/规划闭环；环境或既有失败只保留为阻塞，不自动重试或升级。
+4. `TINY` 升级到 `NORMAL` 后由一个 Diagnoser 补充合并调查、诊断和内联修复契约；`NORMAL` 升级到 `COMPLEX` 后补齐独立规划 Agent、独立 Verifier 和独立复核 Agent，若任务拓扑升级为 `POOLED` 再执行集成。
+5. `TINY` 快速验证的界内失败按验证失败修复轮次保存不可变证据，再进入 `NORMAL` 的新合并诊断闭环；环境或既有失败只保留为阻塞，不自动重试或升级。
 
 每次升级都保留累计实施 `attempt`、`REPAIR_ROUND` 和既有任务记录；升级不是重置尝试次数，也不是扩大用户授权。分类状态、路由原因和升级历史由 `classification.md` 单独作为权威来源，其他文档只引用它。

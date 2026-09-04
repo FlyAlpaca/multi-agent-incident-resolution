@@ -14,7 +14,7 @@ The subagent is the normal writer of `state.md`. The coordinator reads it and re
 
 Agent type is independent of phase role. The Agent that receives the original incident request and owns user gates is `ENTRY`; every dispatched Agent is `EXECUTION`, whether it investigates, diagnoses, plans, implements, integrates, verifies, or reviews. An execution Agent performs its bounded assignment and never initializes the workflow or asks the user to choose a run mode.
 
-Change Classifier runs before any route dispatch as a deterministic coordinator operation. It is not an Agent, receives no run-control handoff, gets no canonical model label, and has no `state.md`, worker lifecycle, or dispatch-ledger record. Do not create a dummy Agent or consume an Agent-upgrade budget for it. The Tiny Implementer still uses the normal handoff and `tasks.yaml` contract; Tiny quick verification is coordinator-owned and creates no Verifier handoff.
+Change Classifier runs before any route dispatch as a deterministic coordinator operation. It is not an Agent, receives no run-control handoff, gets no canonical model label, and has no `state.md`, worker lifecycle, or dispatch-ledger record. Do not create a dummy Agent or consume an Agent-upgrade budget for it. The `TINY` Implementer still uses the normal handoff and `tasks.yaml` contract. `TINY` quick verification and default `NORMAL` basic verification are coordinator-owned and create no Verifier handoff; an escalated `NORMAL` Verifier uses the normal dispatch protocol.
 
 Before every dispatch, the coordinator must persist this workflow-metadata block in that dispatch's ledger record and attach the same values plus the record path to the dispatch envelope, separate from the bounded task payload:
 

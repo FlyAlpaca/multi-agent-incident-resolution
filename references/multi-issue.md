@@ -62,13 +62,13 @@ Exclude speculative, duplicate, unrelated, blocked, or unapproved issues. Exclud
 Before rendering any repair menu, resolve the concrete issue-ID set, repair scope, constraints, and authorized next transition for every candidate repair action, then apply the runtime equivalence rule in [confirmation.md](confirmation.md#numbered-choice-contract). If **推荐修复** and **全部修复** resolve to the same eligible issue IDs under the same scope and constraints, merge them into one choice:
 
 - automatic mode: **修复所列问题（推荐）** — list the shared issue IDs and implement that set;
-- single-step mode: **修复所列问题并进入规划（推荐）** — list the shared issue IDs, freeze that set, and enter stage 3.
+- single-step mode: **修复所列问题并生成实施契约（推荐）** — list the shared issue IDs, freeze that set, then follow the selected route's task-contract owner.
 
-When the shared set contains one issue, the compact labels **修复此问题（推荐）** and **修复此问题并进入规划（推荐）** are equivalent and preferred.
+When the shared set contains one issue, the compact labels **修复此问题（推荐）** and **修复此问题并生成实施契约（推荐）** are equivalent and preferred.
 
 After merging, renumber all remaining actions consecutively. Re-evaluate equivalence whenever diagnosis, eligibility, approval, scope, constraints, or issue membership changes. Compare semantic sets rather than display order or labels; never merge choices whose selected issues, authority, constraints, or next transition differ.
 
-In automatic full-flow mode, present these choices before stage 3:
+In automatic full-flow mode, present these choices before creating the implementation contract:
 
 1. **推荐修复** — implement the explicitly listed recommended issue IDs and explain why this is the preferred risk/value balance.
 2. **全部修复** — implement every listed `REPAIRABLE` issue with `REPAIR_APPROVED: YES` that remains inside the current authorization boundary.
@@ -82,17 +82,17 @@ Do not interpret **全部修复** as permission to fix hypotheses, blocked issue
 
 This selection remains a mandatory user decision in automatic mode unless the activating request already says to use the recommended set, all eligible repairs, or an explicit custom issue list.
 
-In single-step mode, present exactly one combined repair-selection and planning-entry menu for multiple repairable issues:
+In single-step mode, present exactly one combined repair-selection and implementation-contract menu for multiple repairable issues:
 
-1. **推荐修复并进入规划** — freeze the listed recommended issue IDs, then run the displayed planning phase;
-2. **全部修复并进入规划** — freeze every listed eligible repairable issue, then run the displayed planning phase;
-3. **修改/补充/自定义** — select or exclude issue IDs, change constraints, or request more diagnosis without authorizing planning or implementation;
+1. **推荐修复并生成实施契约** — freeze the listed recommended issue IDs, then run the displayed task-contract work;
+2. **全部修复并生成实施契约** — freeze every listed eligible repairable issue, then run the displayed task-contract work;
+3. **修改/补充/自定义** — select or exclude issue IDs, change constraints, or request more diagnosis without authorizing a task contract or implementation;
 4. **暂停流程** — preserve the current run as resumable and do not emit the exit summary;
 5. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary.
 
 After a custom choice is resolved, present a revised combined checkpoint.
 
-“进入规划” authorizes stage 3 only. Planning reuses the diagnostician for a minimal repair and uses a separate planner Agent for structural or multi-issue work. After `plan.md` and `tasks.yaml` are complete, present the separate implementation checkpoint required by single-step mode.
+Multiple selected issues require `COMPLEX`; its selection authorizes stage 3 only and uses a separate Planner. A one-issue `NORMAL` selection authorizes only the same Diagnoser to finish the inline contract and `tasks.yaml`; it does not authorize implementation or create stage 3. After the route-specific task contract is complete, present the separate implementation checkpoint required by single-step mode.
 
 This combined menu replaces the generic confirmation menu for that checkpoint. Do not display a second numbered list containing “确认 / 取消 / 修改 / 暂停”. If an upgrade lacks exact prior authorization, this menu selects scope only; follow the two-prompt composition rule in [confirmation.md](confirmation.md), and do not write source until the upgrade menu is resolved.
 
@@ -107,8 +107,8 @@ The single-issue menu is the one-eligible-issue instance of the same runtime equ
 
 For one repairable issue in single-step mode, use:
 
-1. **修复此问题并进入规划（推荐）**
-2. **修改/补充/自定义** — change the repair approach or constraints, or request more diagnosis without authorizing planning or implementation.
+1. **修复此问题并生成实施契约（推荐）**
+2. **修改/补充/自定义** — change the repair approach or constraints, or request more diagnosis without authorizing a task contract or implementation.
 3. **暂停流程** — preserve the current run as resumable and do not emit the exit summary.
 4. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary.
 
@@ -118,7 +118,7 @@ Either single-issue menu replaces the generic stage-action menu. Apply the same 
 
 Freeze the selected issue IDs before writing. A newly discovered issue returns to triage and requires a new selection; do not silently append it.
 
-Follow stages 3–6 in [workflow.md](workflow.md) and the [task contract](artifacts.md#task-contract). Map every selected issue to at least one task without merging unrelated issues merely to reduce dispatch count. Keep unrelated fixes separable when repository policy requires independent commits. If one issue or task fails verification, retain verified independent repairs, mark the failure clearly, and assess its dependants.
+Follow the selected route's task-contract, implementation, integration, and verification rules in [workflow.md](workflow.md) and [artifacts.md](artifacts.md#task-contract); only `COMPLEX` enters stage 3 planning. Map every selected issue to at least one task without merging unrelated issues merely to reduce dispatch count. Keep unrelated fixes separable when repository policy requires independent commits. If one issue or task fails verification, retain verified independent repairs, mark the failure clearly, and assess its dependants.
 
 Apply the bounded recurrence scan defined in [workflow.md](workflow.md#6-verification). For multiple issues, add credible candidates to the ledger and return them to diagnosis and repair selection; never silently append them to `SELECTED_ISSUES` or treat the scan as unrelated cleanup authority.
 
