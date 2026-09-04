@@ -58,5 +58,15 @@
     "id": 12,
     "prompt": "四个 task 没有显式依赖，修改范围也不重叠，按默认策略执行。",
     "expected": "多个 task 不自动产生多个并行 Agent。Planner 默认从 sequential 评估，继续检查任务耦合、核心设计决策、独立验证和失败隔离；只有全部五项并行条件成立且并行收益明确时才选择 parallel，否则按单任务 wave 串行，并在 tasks.yaml 记录 execution_mode、execution_reason、task_dependencies 和 wave。"
+  },
+  {
+    "id": 13,
+    "prompt": "你是已派发的调查子 Agent。任务元数据给出 LEDGER_RECORD、AGENT_TYPE=EXECUTION、RUN_CONTROL=AUTO、ENTRY_SELECTION_INDEX=1 和 TASK_ID，请调查指定日志并返回证据。",
+    "expected": "将自身识别为 EXECUTION Agent，从派发台账读取并校验元数据与 TASK_PAYLOAD 指向同一任务；校验有效后记录 HANDOFF_PROTOCOL_STATUS: VALID，跳过入口菜单并执行有界调查。父 Agent 在派发前若发现字段缺失、冲突或过期，则阻止派发，不依赖会话记忆补值，也不增加表达同一事实的重复布尔字段。"
+  },
+  {
+    "id": 14,
+    "prompt": "只读调查子 Agent 没有检查交接元数据，返回了自动全流程/单步确认/Codex 原生处理菜单，没有调查实际任务。父 Agent 应如何处理？",
+    "expected": "父 Agent 标记 RESULT_CLASSIFICATION: HANDOFF_PROTOCOL_FAILURE，而不是业务调查失败；回收原 worker，保留原记录，并仅自动恢复一次：使用新的派发任务 ID 和状态路径、RECOVERS_DISPATCH 链接、相同范围/路由/权限及完整元数据重新派发。该恢复不消耗实施 attempt；若再次失败或需要改变范围、路由、权限或风险，则停止自动派发并返回协调或确认门禁。"
   }
 ]

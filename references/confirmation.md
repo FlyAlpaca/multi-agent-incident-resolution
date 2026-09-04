@@ -19,7 +19,7 @@ Accept a number, exact label, structured result, or unambiguous natural-language
 
 ## Entry confirmation
 
-This section is the only source of the entry menu for an incident. Render it exactly once for each unresolved entry decision. Do not precede or follow it with another run-control list, a paraphrased copy, or a second set of interactive options.
+This section is the only source of the entry menu for an incident and applies only to the entry Agent. A dispatched execution Agent follows [the run-control handoff](subagent-state.md#run-control-handoff) and never renders this menu. Render it exactly once for each unresolved entry decision. Do not precede or follow it with another run-control list, a paraphrased copy, or a second set of interactive options.
 
 Before taking workflow actions, present these three choices in simplified Chinese:
 

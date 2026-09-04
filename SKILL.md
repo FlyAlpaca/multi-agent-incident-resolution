@@ -9,9 +9,9 @@ Resolve incidents without confusing symptoms with root causes or letting repairs
 
 ## Enter and route the workflow
 
-At the first activation for an incident, use the entry menu in [references/confirmation.md](references/confirmation.md), unless the user already selected **自动全流程**, **单步确认**, or **Codex 原生处理** unambiguously. Selecting **Codex 原生处理** disables this skill workflow and continues the original request under the default Codex workflow. Before entry is resolved, do not inspect, delegate, create artifacts, or edit. The choice applies only to the current incident.
+At the first activation for an incident by the entry Agent, use the entry menu in [references/confirmation.md](references/confirmation.md), unless the user already selected **自动全流程**, **单步确认**, or **Codex 原生处理** unambiguously. Dispatched execution Agents follow [the run-control handoff](references/subagent-state.md#run-control-handoff) instead of entering the workflow again. Selecting **Codex 原生处理** disables this skill workflow and continues the original request under the default Codex workflow. Before an entry Agent resolves entry, do not inspect, delegate, create artifacts, or edit. The choice applies only to the current incident.
 
-🔴 CHECKPOINT · 入口确认：必须先让用户从三选一中明确运行方式，未确认前不得行动；选择只对本事件有效。
+🔴 CHECKPOINT · 入口确认：仅入口 Agent 必须先让用户从三选一中明确运行方式，未确认前不得行动；已校验交接元数据的执行 Agent 不得重新触发入口。选择只对本事件有效。
 
 After entry, infer the narrowest authorized scope:
 
@@ -71,7 +71,7 @@ The workflow uses seven roles; implementation may expand into a bounded pool sch
 - Derive tasks, waves, `execution_mode`, and the implementation-Agent budget from complete repair closures under [the planning contract](references/workflow.md#task-and-pool-shape). Multiple tasks, disjoint files, or available runtime slots do not by themselves authorize splitting or concurrent dispatch.
 - `tasks.yaml` is the write-authority contract. Implementers have disjoint `file_scope`; `POOLED` requires later integration within `integration_scope` after every implementer stops. Apply its schema and dependency rules from [artifacts.md](references/artifacts.md#task-contract).
 - Verifiers and reviewers report rather than repair. Route findings according to [workflow.md](references/workflow.md), and keep the independent reviewer separate from implementation and integration.
-- Keep each handoff task-specific. While a task is active the coordinator observes without prompting; terminal handoff and worker termination are separate gates governed solely by [subagent-state.md](references/subagent-state.md).
+- Keep each handoff task-specific. Before every dispatch, persist and validate the run-control handoff fields required by [subagent-state.md](references/subagent-state.md#run-control-handoff); an incomplete handoff is not dispatchable. While a task is active the coordinator observes without prompting; terminal handoff and worker termination are separate gates governed solely by that protocol.
 - Treat the routes above as defaults. An equivalent or lower available route may substitute with disclosure. A higher-cost route needs confirmation unless the user has already explicitly authorized that exact role and configuration for this incident.
 
 ## Bound repair effort
