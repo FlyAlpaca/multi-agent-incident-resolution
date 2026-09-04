@@ -73,6 +73,8 @@ run:
   repair_round: <positive integer>
   repair_type: MINIMAL | STRUCTURAL | MIXED
   implementation_mode: SINGLE | POOLED
+  execution_mode: sequential | parallel | mixed
+  execution_reason: <why this schedule is safer or more valuable than the alternatives>
   integration_required: false | true
   selected_issues: [ISSUE-001]
   integration_scope:             # later-phase write boundary; task scopes plus planned shared seams
@@ -84,8 +86,8 @@ tasks:
     issue_ids: [ISSUE-001]
     owner: IMPLEMENTER-A          # stable pool identifier; IMPLEMENTER-SINGLE when N=1
     route: gpt-5.6-luna/max
-    wave: 1                       # tasks in one wave may run concurrently
-    depends_on: []
+    wave: 1                       # dispatch order; concurrency also requires execution_mode and safety checks
+    task_dependencies: []        # task IDs that must complete before this task
     file_scope:                   # exclusive write scope; union of all tasks is the repair scope
       - path/to/file.ts
     read_scope:                   # additional paths the implementer may read
@@ -100,8 +102,11 @@ tasks:
 Required properties:
 
 - Task IDs are stable for the whole run; never renumber or reuse one.
+- Each task represents one complete repair closure and satisfies [the task-and-pool-shape rules](workflow.md#task-and-pool-shape). Files, modules, functions, and edit locations are scope metadata, not task boundaries; `plan.md` carries the required split justification.
+- `implementation_mode` is a validated summary of task topology: `SINGLE` means exactly one task and one implementer; `POOLED` means at least two tasks and one implementer per task. `execution_mode` independently describes when those tasks may run. `execution_reason` explains why tasks can or cannot overlap; multiple tasks or disjoint files alone never imply `parallel`.
+- `wave` is the canonical execution order and `task_dependencies` is the canonical dependency list; do not duplicate them in a second graph inside `tasks.yaml`. `sequential` uses one task per wave, `parallel` uses one or more concurrent waves of independent tasks, and `mixed` uses ordered waves with at least one single-task wave and one concurrent wave.
 - `file_scope` sets of tasks in the same wave must be disjoint, and no file may be owned by two tasks. Because integration begins only after all implementers stop, `integration_scope` normally contains the union of task scopes plus any planned shared seams; this later-phase overlap does not create concurrent ownership.
-- `depends_on` references only task IDs from an earlier wave; a task is dispatchable only after every dependency ended as `DONE` or an acceptance-supported `NO_CHANGE` and its worker termination was confirmed.
+- `task_dependencies` references only task IDs from an earlier wave; a task is dispatchable only after every dependency ended as `DONE` or an acceptance-supported `NO_CHANGE` and its worker termination was confirmed.
 - `acceptance` must be checkable by stage 6 without reinterpretation; a task without acceptance conditions is not dispatchable.
 - `status` and `attempt` are updated in place by the coordinator only before dispatch or after the whole active wave stops; `attempt: 0` means not yet dispatched, and the first dispatch sets it to `1`. Never rewrite history to hide a failed task.
 - `run.repair_round` identifies the current orchestration cycle. Advancing it refreshes diagnosis and planning state but never resets a task, issue, or shared-direction attempt counter.
@@ -110,7 +115,7 @@ Required properties:
 
 Related run artifacts:
 
-- `plan.md` — the human-readable decomposition, dependency, parallel, integration, and verification strategy;
+- `plan.md` — the human-readable decomposition, dependency, execution-mode, integration, and verification strategy;
 - `implementation/tasks/<TASK-ID>.md` — one record per dispatched task;
 - `implementation.md` — the coordinator-owned aggregate of the implementation phase;
 - `integration.md` — the assembly record, required whenever `integration_required` is `true`.
@@ -120,6 +125,7 @@ Related run artifacts:
 
 - `diagnose` may produce or refresh only the workflow artifacts required by stages 1–2, including `evidence.md`, `diagnosis.md`, and `issue-ledger.md`; it must not produce `plan.md` or `tasks.yaml`, and must not edit project source or tests.
 - `repair` requires a supplied or existing current diagnosis and a resolved repair selection. Normalize a sufficiently evidenced supplied diagnosis into `diagnosis.md` and `issue-ledger.md`; do not repeat investigation solely because the input did not already use this skill's artifact format. Derive `plan.md` and `tasks.yaml` in stage 3 when they are missing, stale, or inconsistent with the frozen diagnosis and selection; no implementation is dispatchable without them. Before implementation, require `DIAGNOSIS_STATUS: COMPLETE`, `PLAN_STATUS: COMPLETE`, an explicit non-pending repair selection, and `REPAIR_APPROVED: YES` for every selected issue. If the diagnosis is incomplete or stale relative to the incident input or current diff, return to diagnosis and selection; if only the decomposition is stale, return to planning.
+- A legacy `tasks.yaml` may be read with `depends_on` as the predecessor of `task_dependencies`, but planning must normalize it to the current field before another implementation dispatch. If `execution_mode` or `execution_reason` is absent, return to planning; never infer permission to run concurrently from legacy waves or disjoint scopes.
 - `review` can run without prior artifacts against the current diff, source, and tests. Missing artifacts are then a coverage limitation, not an automatic failure.
 - A full `debug` run must not reuse artifacts from a different incident or an earlier source state without validating their inputs and Git revision.
 
@@ -160,6 +166,7 @@ AGENT_UPGRADES: NONE | PENDING | APPROVED | PREAUTHORIZED | DEFAULTED | CUSTOM |
 AGENT_UPGRADE_COUNT: <non-negative integer>
 
 IMPLEMENTATION_MODE: SINGLE | POOLED
+EXECUTION_MODE: sequential | parallel | mixed
 IMPLEMENTER_COUNT: <positive integer>
 TASKS_TOTAL: <non-negative integer>
 TASKS_DONE: <non-negative integer>
@@ -198,7 +205,7 @@ Use `REPAIR_SELECTION: PENDING` for diagnosis-only output before the user choose
 
 `EARLY_EXIT_PHASE: DIAGNOSIS` is stage 2 only; `PLANNING` is stage 3, used when planning produced no executable task. `PLANNING_MODE: SKIPPED` and `PLAN_STATUS: SKIPPED` apply only when planning never ran, such as a `NO_ISSUE` exit, a `BLOCKED` diagnosis, a `NO_REPAIR_SELECTED` exit, a standalone `diagnose`, or a standalone `review`; never use them to hide an unfinished plan.
 
-`PLANNING_MODE: INLINE` means the diagnostician also produced the plan and keeps its original canonical Agent label; it does not create a distinct planner identity. If repair selection or a single-step checkpoint separates stages 2 and 3, the resumed planning turn still requires its own dispatch-ledger record and task-state path. `DEDICATED` means a separate planner Agent was dispatched with its own label, task path, and terminal handoff. Record the mode once before stage 3 starts; a switch from `INLINE` to `DEDICATED` records the switch reason and new dispatch rather than rewriting the earlier decision. `IMPLEMENTATION_MODE: SINGLE` requires `IMPLEMENTER_COUNT: 1`, `INTEGRATION_REQUIRED: NO`, and `INTEGRATION_STATUS: SKIPPED`; this is a normal minimal repair, not a degraded one. `POOLED` requires `INTEGRATION_REQUIRED: YES`, independent of how many workers ultimately changed files. `TASKS_DONE` counts only tasks whose acceptance conditions were met, so a run is not complete while `TASKS_DONE` is below `TASKS_TOTAL` unless the remainder is explicitly triaged, deferred, or blocked.
+`PLANNING_MODE: INLINE` means the diagnostician also produced the plan and keeps its original canonical Agent label; it does not create a distinct planner identity. If repair selection or a single-step checkpoint separates stages 2 and 3, the resumed planning turn still requires its own dispatch-ledger record and task-state path. `DEDICATED` means a separate planner Agent was dispatched with its own label, task path, and terminal handoff. Record the mode once before stage 3 starts; a switch from `INLINE` to `DEDICATED` records the switch reason and new dispatch rather than rewriting the earlier decision. `IMPLEMENTATION_MODE: SINGLE` requires `IMPLEMENTER_COUNT: 1`, `EXECUTION_MODE: sequential`, `INTEGRATION_REQUIRED: NO`, and `INTEGRATION_STATUS: SKIPPED`; this is a normal minimal repair, not a degraded one. `POOLED` requires `INTEGRATION_REQUIRED: YES`, independent of its execution mode or how many workers ultimately changed files. `TASKS_DONE` counts only tasks whose acceptance conditions were met, so a run is not complete while `TASKS_DONE` is below `TASKS_TOTAL` unless the remainder is explicitly triaged, deferred, or blocked.
 
 ## Evidence quality
 

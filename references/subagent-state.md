@@ -33,7 +33,8 @@ A terminal handoff does not prove the worker stopped. A terminal worker that rem
 A dispatch is either a solo task or one member of an implementer pool. Pool rules:
 
 - one `<task-id>` directory per task; never share a task path between two workers, and never reuse a task path for a reassignment;
-- dispatch waves in dependency order: start a wave only after every task in earlier waves reached a terminal handoff and its worker was reclaimed;
+- dispatch waves in dependency order: start a wave only after every task in earlier waves reached a terminal handoff and its worker was reclaimed; `sequential` waves contain one task, `parallel` uses concurrent waves, and `mixed` may contain both single-task and concurrent waves;
+- before a concurrent wave, revalidate [the canonical parallel-safety criteria](workflow.md#execution-mode); if any condition drifted, dispatch nothing from that wave and return to planning;
 - every member receives its exclusive `file_scope` from `tasks.yaml`, writes only inside it, and reports any needed out-of-scope write as a blocker instead of performing it; later integrator authority over the aggregate `run.integration_scope` does not expand any implementer's scope;
 - the coordinator stays passive for the whole wave, so a scope conflict discovered mid-wave is resolved at integration, or by replanning after the wave is reclaimed, never by messaging an active member;
 - a terminal task does not by itself release dependent tasks; wait until its whole wave is terminal and reconciled;
