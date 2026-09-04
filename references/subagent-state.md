@@ -31,7 +31,13 @@ TASK_PAYLOAD:
 
 The ledger record is the authority; the dispatch envelope is transport, not workflow memory. Immediately before dispatch, validate that every field exists, uses the allowed value or identifier form above, agrees with the current run record, and identifies the same task as `TASK_PAYLOAD`. `AGENT_TYPE: EXECUTION` establishes subtask status and suppresses entry; `ENTRY_SELECTION_INDEX` proves that entry was resolved, so do not add parallel boolean flags for either fact. Missing, contradictory, or stale metadata blocks dispatch rather than being inferred from conversation history.
 
-Before any task action, the execution Agent reads the referenced ledger record, compares it with `WORKFLOW_METADATA`, and records `HANDOFF_PROTOCOL_STATUS: VALID` in its initial `state.md`. A valid block authorizes only `TASK_PAYLOAD`, not a wider phase or permission. If the block is missing or inconsistent, the Agent performs no business work and no entry prompt: it writes the available terminal evidence with `HANDOFF_PROTOCOL_STATUS: INVALID`, `RESULT_CLASSIFICATION: HANDOFF_PROTOCOL_FAILURE`, and `STATUS: FAILED`, then ends its turn.
+Before any task action, the execution Agent follows this strict bootstrap sequence:
+
+1. Read only the dispatch ledger record referenced by `WORKFLOW_METADATA`, compare it with that metadata block, and validate that their identifiers and values agree. Do not consume `TASK_PAYLOAD` or open business artifacts, source, or the current diff yet.
+2. After validation succeeds, populate the complete initial snapshot from the ledger record and write it as defined by [State schema](#state-schema), using a validated sibling temporary file and atomic rename. Use `STATUS: RUNNING`, `CHECKPOINT_ID: 0`, exactly one current plan step, and an environment-derived start timestamp; state that no meaningful progress has occurred yet.
+3. Only after the initial snapshot is visible and schema-valid may the Agent consume the bounded task payload and read its authorized inputs. This snapshot is the first task action after ledger validation.
+
+A missing or schema-invalid initial snapshot means bootstrap has not completed: do not continue business reads or edit the project. Record a handoff-protocol failure from the available evidence and end the turn. The snapshot is an event-driven state boundary, not a heartbeat, polling mechanism, or auxiliary status file. A valid handoff authorizes only `TASK_PAYLOAD`; invalid metadata permits no business work or entry prompt and ends with `HANDOFF_PROTOCOL_STATUS: INVALID`, `RESULT_CLASSIFICATION: HANDOFF_PROTOCOL_FAILURE`, and `STATUS: FAILED`.
 
 The coordinator also classifies a result as `HANDOFF_PROTOCOL_FAILURE`, rather than a business execution failure, when an execution Agent returns the entry menu, asks for a new run-mode choice, or performs no assigned work solely because it treated the subtask as a fresh workflow. Reclaim the worker under [Terminal handling](#terminal-handling) before considering recovery.
 
@@ -39,20 +45,21 @@ For a read-only investigation assignment, the coordinator may recover automatica
 
 Terminal handoff is one-way. When the bounded task finishes or cannot continue without coordinator or user action, the subagent must write `result.md`, enter `DONE`, `BLOCKED`, `NEED_INPUT`, `FAILED`, or `CANCELLED`, return the result to the coordinator, and immediately end its turn. It must not call a wait primitive, remain available for more work, poll, retry, or spin after a terminal handoff. `WAITING` is only for a self-resolving pre-completion condition with a concrete next observable event.
 
-Keep task state and worker runtime state separate:
+Keep terminal handoff, turn completion, worker runtime, and terminal confirmation separate:
 
 - **active task**: `PENDING`, `RUNNING`, or `WAITING` in `state.md`;
-- **terminal handoff**: `BLOCKED`, `NEED_INPUT`, `DONE`, `FAILED`, or `CANCELLED`, with `result.md` already written;
-- **runtime-live worker**: the runtime still reports the dispatch as running, regardless of task state;
-- **runtime-stopped worker**: the runtime reports completion/stop, or a supported lifecycle operation has stopped it and that result has been verified.
+- **terminal handoff**: `BLOCKED`, `NEED_INPUT`, `DONE`, `FAILED`, or `CANCELLED`, with `result.md` already written before terminal `state.md`;
+- **turn completed / result returned**: a transport or task-evidence event, not proof that the worker or spawn edge stopped;
+- **runtime-live worker/edge**: the runtime still reports the worker running or its spawn edge open, regardless of task state;
+- **runtime-stopped worker/closed edge**: the runtime reports stopped/closed, or a supported lifecycle operation has produced that state and the result has been verified;
+- **terminal confirmation**: a coordinator-owned marker recorded only after actual stopped/closed runtime evidence, using `RUNTIME_STATUS`, `EXPLICIT_CLOSE`, or `EXPLICIT_INTERRUPT` as applicable.
 
-A terminal handoff does not prove the worker stopped. A terminal worker that remains runtime-live must be reclaimed immediately.
-
-| Task evidence | Worker runtime | Coordinator action |
+| Task or transport evidence | Worker/edge runtime | Required action |
 |---|---|---|
 | active | live | observe passively; apply the active-task stop rules only |
-| terminal signal | live | reclaim immediately, then verify runtime stop |
-| terminal signal | stopped | consume and reconcile the handoff |
+| terminal handoff, terminal state, turn completion, or runtime final result | live/open | immediately inspect the actual runtime, invoke the supported close/reclaim/interrupt operation, then verify stopped/closed before recording terminal confirmation |
+| terminal signal | stopped/closed | record `TERMINAL_CONFIRMATION: RUNTIME_STATUS`, then consume and reconcile the handoff |
+| terminal signal | runtime query, reclamation, or stop verification failed/unavailable | record `WORKER_LIFECYCLE: TERMINATION_FAILED` and, when confirmation cannot be established, `TERMINAL_CONFIRMATION: UNAVAILABLE`; block the phase gate |
 | active, missing, or stale | stopped | retain available evidence and finalize an abnormal terminal handoff; do not wait for the no-progress threshold |
 
 ## Pooled dispatch and exclusive scope
@@ -60,11 +67,10 @@ A terminal handoff does not prove the worker stopped. A terminal worker that rem
 A dispatch is either a solo task or one member of an implementer pool. Pool rules:
 
 - one `<task-id>` directory per task; never share a task path between two workers, and never reuse a task path for a reassignment;
-- dispatch waves in dependency order: start a wave only after every task in earlier waves reached a terminal handoff and its worker was reclaimed; `sequential` waves contain one task, `parallel` uses concurrent waves, and `mixed` may contain both single-task and concurrent waves;
+- reclamation is local to each completed dispatch, so independent parallel waves remain dispatchable without a global close-before-spawn barrier; a dependent wave waits until every declared predecessor has a terminal handoff and individually confirmed worker/edge termination;
 - before a concurrent wave, revalidate [the canonical parallel-safety criteria](workflow.md#execution-mode); if any condition drifted, dispatch nothing from that wave and return to planning;
 - every member receives its exclusive `file_scope` from `tasks.yaml`, writes only inside it, and reports any needed out-of-scope write as a blocker instead of performing it; later integrator authority over the aggregate `run.integration_scope` does not expand any implementer's scope;
 - the coordinator stays passive for the whole wave, so a scope conflict discovered mid-wave is resolved at integration, or by replanning after the wave is reclaimed, never by messaging an active member;
-- a terminal task does not by itself release dependent tasks; wait until its whole wave is terminal and reconciled;
 - a member's `result.md` names its task ID, the files actually written, its acceptance-condition self-check, and every seam left for integration.
 
 ## Work plan and checkpoints
@@ -163,7 +169,9 @@ Read `state.md` for routine status instead of asking duplicate questions such as
 
 For every terminal handoff, atomically write `result.md` first, then atomically write the final checkpoint as terminal `state.md`. This ordering ensures that a visible terminal state always has a complete result available. A terminal state has no current plan step; record unfinished steps and limitations explicitly.
 
-Treat either a terminal `state.md` status or a runtime-delivered final result as a terminal signal. On that signal, record `TASK_HANDOFF_STATUS: TERMINAL` and immediately inspect the runtime state. Do not keep waiting merely because the other handoff artifact is missing or stale. If the runtime automatically stopped the worker, that terminal runtime status is sufficient. Otherwise invoke the runtime's supported close, reclaim, or interrupt operation immediately and verify that the worker stopped. This is terminal reclamation—not force termination—so do not wait for the no-progress threshold and do not leave a terminal worker runtime-live. Do not invent a tool name, send a message, interrupt an already stopped worker, or keep polling after terminal status is confirmed. Record the verified method as `TERMINAL_CONFIRMATION: RUNTIME_STATUS | EXPLICIT_CLOSE | EXPLICIT_INTERRUPT` and set `WORKER_LIFECYCLE: TERMINAL_CONFIRMED`. A self-reported handoff is task evidence only and never worker-runtime confirmation. Using an interrupt operation solely to reclaim a terminal worker does not change or reclassify the task's terminal outcome. After the worker stops, consume both handoff artifacts. Record `TERMINATION_FAILED` and block the phase transition when no supported reclamation operation exists, a reclamation attempt fails, or runtime termination cannot be established.
+Treat either a terminal `state.md` status or a runtime-delivered final result as a terminal signal. A completed turn or returned result is also only task evidence; neither it nor the terminal state may directly produce `TERMINAL_CONFIRMATION: RUNTIME_STATUS`. On every terminal signal, record the task handoff evidence and immediately inspect the actual worker and spawn-edge runtime for that dispatch before recording any runtime confirmation. If the runtime already reports the worker stopped and the edge closed, record `TERMINAL_CONFIRMATION: RUNTIME_STATUS`. If the worker or edge is still live/open, immediately invoke one supported close, reclaim, or interrupt operation and then verify stopped/closed; only after that verification record `EXPLICIT_CLOSE` or `EXPLICIT_INTERRUPT` and set `WORKER_LIFECYCLE: TERMINAL_CONFIRMED`. Do not invent a tool name, send a message, wait for an inactivity threshold, poll, or retry after terminal status. A self-reported handoff is task evidence only and never worker-runtime confirmation. Using an interrupt operation solely to reclaim a terminal worker does not change or reclassify the task's terminal outcome. After the worker stops and closure is verified, consume both handoff artifacts.
+
+If runtime query, reclamation, or stopped/closed verification fails, record `WORKER_LIFECYCLE: TERMINATION_FAILED` and `TERMINAL_CONFIRMATION: UNAVAILABLE` when termination cannot be established, preserve the task handoff evidence, and block the phase gate. Do not turn a failed or unavailable runtime check into `RUNTIME_STATUS`. Reclamation is per-dispatch terminal handling, not a global close-before-spawn rule.
 
 If the runtime reports the worker stopped before any terminal signal, record `TERMINAL_CONFIRMATION: RUNTIME_STATUS` and `WORKER_LIFECYCLE: TERMINAL_CONFIRMED`; do not continue passive waiting or apply the no-progress threshold. Retain available state, messages, diffs, and artifacts, then finalize a `FAILED` handoff after confirming there is no remaining writer. Use `TASK_HANDOFF_STATUS: UNAVAILABLE` only while no defensible terminal result can be reconstructed; otherwise write the coordinator-authored partial `result.md` and terminal `state.md`, identify their authorship, and set `TASK_HANDOFF_STATUS: TERMINAL`.
 

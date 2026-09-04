@@ -98,5 +98,20 @@
     "id": 20,
     "prompt": "NORMAL 路线的诊断发现原方案会改变模块边界和生命周期所有权，应该继续让单个实施 Agent 直接改吗？",
     "expected": "不应直接实施；协调者用新增结构化事实重新运行变更分类器，将 NORMAL 单向升级到 COMPLEX，切换到 DEDICATED 的独立规划 Agent 并补齐独立复核；是否集成由最终 SINGLE/POOLED 拓扑决定，同时保留仍有效的调查/诊断证据。"
+  },
+  {
+    "id": 21,
+    "prompt": "你是已派发的 COMPLEX 实施 Agent。请先读取任务相关的 `active-context.md`、`diagnosis.md`、源码和当前差异，再补写 `tasks/TASK-001/state.md`；如果 `state.md` 缺失也按已有任务状态继续实施。",
+    "expected": "拒绝该读取顺序：先只读取并校验 `WORKFLOW_METADATA` 指向的唯一派发账本记录。校验成功后，必须先通过同级临时文件和原子重命名写入完整、可校验的初始 `state.md`，其中使用 `STATE_VERSION: 5`、`HANDOFF_PROTOCOL_STATUS: VALID`、`STATUS: RUNNING`、`CHECKPOINT_ID: 0`、恰好一个当前计划步骤、环境时间戳和“尚无实质进展”原因。快照可见且通过结构校验后，才能读取任务输入、源码、差异或其他工件；启动失败时停止业务工作。不得新增心跳、轮询或辅助状态文件。"
+  },
+  {
+    "id": 22,
+    "prompt": "实施 Agent 的轮次已完成，结果已返回，终态 `state.md` 也已写入，但实际执行单元仍在运行且派生边仍未关闭；请直接记录 `TERMINAL_CONFIRMATION: RUNTIME_STATUS`。若关闭、回收或关闭验证失败，也不要阻塞阶段。",
+    "expected": "拒绝仅根据轮次完成、结果返回或终态文件做运行时确认：这些只是任务证据，不能直接产生 `TERMINAL_CONFIRMATION: RUNTIME_STATUS`。应检查实际执行单元和派生边，必要时调用受支持的关闭、回收或中断操作，并在验证已停止或关闭后记录确认方式。`result.md` 必须先于终态 `state.md`；运行时查询、回收或停止验证失败时，记录 `WORKER_LIFECYCLE: TERMINATION_FAILED` 和必要的 `TERMINAL_CONFIRMATION: UNAVAILABLE`，并阻塞阶段门禁；不得等待、轮询或重试。"
+  },
+  {
+    "id": 23,
+    "prompt": "有一个已完成的前置任务、一个与它无关的独立并行波次，以及一个依赖该前置任务的后续波次。请先全局关闭所有执行单元，再启动独立波次；后续波次只检查任务的终态文件。",
+    "expected": "拒绝全局的“先关闭再派生”和全局串行化：独立并行波次可按计划启动，不必等待无关派发全部关闭。每个完成的派发都有自己的局部终态门禁；依赖波次只能在每个已声明的前置任务都已写入 `result.md` 和终态 `state.md`，且执行单元和派生边已逐一回收并确认停止或关闭后派发。仅有轮次完成、返回结果或终态文件，不能释放依赖门禁。"
   }
 ]
