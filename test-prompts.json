@@ -2,7 +2,7 @@
   {
     "id": 1,
     "prompt": "线上支付服务大量返回 500，订单、账务、网关三个微服务的日志里都有异常，先帮我查清楚根因再决定怎么修。",
-    "expected": "进入入口菜单（自动全流程/单步确认/Codex 原生处理）；结构化指标不完整时不能判为 TINY，先走 NORMAL 调查路线；调查确认跨模块影响后由协调者升级到 COMPLEX，再按多问题分诊，不擅自改源码。"
+    "expected": "进入入口菜单（自动全流程/单步确认/Codex 原生处理）；结构化指标不完整时不能判为 TINY，先走 NORMAL，由一个只读 Diagnoser 合并调查与诊断；若确认跨模块影响，协调者升级到 COMPLEX 并补齐完整多 Agent 路线，再按多问题分诊，不擅自改源码。"
   },
   {
     "id": 2,
@@ -17,12 +17,12 @@
   {
     "id": 4,
     "prompt": "自动全流程重构订单、账务和网关三个模块，根因和推荐修复集合已经确认；其中订单幂等、账务补偿和网关重试分别有独立目标、验收、执行路径和风险边界，请并行实施并完成整合。",
-    "expected": "从 repair 的阶段 3 开始；规划 Agent 先确认三个独立修复闭环，检查低耦合、范围互斥、无共享核心设计决策、独立验证和失败隔离，记录拆分理由、execution_mode: parallel、execution_reason、task_dependencies 及执行前自检，再使用 DEDICATED 规划与不超过三个 Agent 的 POOLED 实施；所有实施 Agent 退出后仍执行集成，再验证和独立复核。"
+    "expected": "从 repair 的阶段 3 开始；规划 Agent 先确认三个独立修复闭环，检查低耦合、范围互斥、无共享核心设计决策、独立验证和失败隔离，记录 TASK_CONTRACT_MODE: PLANNER、PLANNING_MODE: DEDICATED、execution_mode: parallel、execution_reason、task_dependencies 及执行前自检，再使用不超过三个 Agent 的 POOLED 实施；所有实施 Agent 退出后仍执行集成，再验证和独立复核。"
   },
   {
     "id": 5,
     "prompt": "单步确认修复这个已定位的单文件空指针问题，先做诊断，后续每一步等我确认。",
-    "expected": "使用 MINIMAL/INLINE 时复用诊断 Agent，但诊断结束后先等待修复选择与阶段 3 确认；不得以同一 Agent 为由越过单步门禁，恢复规划时创建新的有界派发记录和状态路径。"
+    "expected": "NORMAL 使用同一个只读 Diagnoser 合并调查、诊断与简单修复契约；诊断结束后先等待修复选择，选择只授权该 Diagnoser 以 TASK_CONTRACT_MODE: DIAGNOSER_INLINE 完成内联契约和单任务 tasks.yaml，规划标记保持 SKIPPED，不创建独立 Planner、stage 3 或 plan.md，也不授权实施；恢复时使用新的有界派发记录和状态路径，随后仍单独确认 Implementer。"
   },
   {
     "id": 6,
@@ -82,12 +82,12 @@
   {
     "id": 17,
     "prompt": "自动全流程按下面的变更信封修复拼写：change_scope={affected_files: 1, affected_paths: [src/format.ts], estimated_changes: 2}; risk={api_change: false, database_change: false, schema_change: false, architecture_change: false}; dependency={cross_module: false, external_dependency: false}。",
-    "expected": "变更分类器作为非 Agent 角色命中 TINY；协调者直接物化一个 tasks.yaml 单任务，派发一个实施 Agent，随后由协调者做快速只读验证；不派调查、诊断、规划、集成、验证或独立复核 Agent。"
+    "expected": "变更分类器作为非 Agent 角色命中 TINY；协调者以 TASK_CONTRACT_MODE: COORDINATOR 直接物化一个 tasks.yaml 单任务，规划标记为 SKIPPED，派发一个实施 Agent，随后由协调者做快速只读验证；不派调查、诊断、规划、集成、验证或独立复核 Agent。"
   },
   {
     "id": 18,
     "prompt": "修复一个单文件 bug，但实现时发现需要同时改调用模块，且原始测试无法在单文件边界内快速恢复。",
-    "expected": "TINY 实施 Agent 不得扩大 file_scope 或自行重新设计；以终态 BLOCKED 交接在结果中记录 UPGRADE_REQUESTED，协调者记录不可变的失败/升级证据并把路线单向升级到 NORMAL，重新经过调查、诊断/规划和标准验证，累计尝试次数不清零。"
+    "expected": "TINY 实施 Agent 不得扩大 file_scope 或自行重新设计；以终态 BLOCKED 交接在结果中记录 UPGRADE_REQUESTED，协调者记录不可变的失败/升级证据并把路线单向升级到 NORMAL，由一个只读 Diagnoser 合并调查、诊断和内联修复契约，实施后由协调者基础验证，累计尝试次数不清零。"
   },
   {
     "id": 19,
@@ -97,7 +97,7 @@
   {
     "id": 20,
     "prompt": "NORMAL 路线的诊断发现原方案会改变模块边界和生命周期所有权，应该继续让单个实施 Agent 直接改吗？",
-    "expected": "不应直接实施；协调者用新增结构化事实重新运行变更分类器，将 NORMAL 单向升级到 COMPLEX，切换到 DEDICATED 的独立规划 Agent 并补齐独立复核；是否集成由最终 SINGLE/POOLED 拓扑决定，同时保留仍有效的调查/诊断证据。"
+    "expected": "不应直接实施；协调者用新增结构化事实重新运行变更分类器，将 NORMAL 单向升级到 COMPLEX，切换到 TASK_CONTRACT_MODE: PLANNER 和 PLANNING_MODE: DEDICATED 的独立规划 Agent，并补齐独立复核；是否集成由最终 SINGLE/POOLED 拓扑决定，同时保留仍有效的调查/诊断证据。"
   },
   {
     "id": 21,
@@ -113,5 +113,20 @@
     "id": 23,
     "prompt": "有一个已完成的前置任务、一个与它无关的独立并行波次，以及一个依赖该前置任务的后续波次。请先全局关闭所有执行单元，再启动独立波次；后续波次只检查任务的终态文件。",
     "expected": "拒绝全局的“先关闭再派生”和全局串行化：独立并行波次可按计划启动，不必等待无关派发全部关闭。每个完成的派发都有自己的局部终态门禁；依赖波次只能在每个已声明的前置任务都已写入 `result.md` 和终态 `state.md`，且执行单元和派生边已逐一回收并确认停止或关闭后派发。仅有轮次完成、返回结果或终态文件，不能释放依赖门禁。"
+  },
+  {
+    "id": 24,
+    "prompt": "自动全流程修复一个 NORMAL 级别的单模块问题。日志、复现和代码路径都需要先分析，但修复方向预计是一个最小闭环。",
+    "expected": "只派发一个只读 Diagnoser 合并基础调查、日志与代码路径分析、根因判断和简单修复契约，统一写入 diagnosis.md，并在选择冻结后以 TASK_CONTRACT_MODE: DIAGNOSER_INLINE 生成一个 tasks.yaml；PLANNING_MODE 和 PLAN_STATUS 均为 SKIPPED，不派 Investigator 或 Planner、不创建 evidence.md 或 plan.md。随后派一个独立 Implementer，最后由协调者执行基础验证并明确跳过独立复核。"
+  },
+  {
+    "id": 25,
+    "prompt": "NORMAL 实施已完成，协调者执行聚焦测试和相关回归均通过，修改范围与诊断一致，也没有新增风险。是否还要派 Verifier？",
+    "expected": "不派独立 Verifier；记录 VERIFICATION_MODE: BASIC、VERIFICATION_OWNER: COORDINATOR、VERIFIER_ESCALATION_REASON: NONE 和通过结果。只有修改或回归范围扩大、协调者检查失败或归因不清、残余风险升高时才升级 Verifier，并先用新事实重跑分类器。"
+  },
+  {
+    "id": 26,
+    "prompt": "NORMAL 实施后，协调者的原始复现失败，但现象可能来自测试环境，也可能是修复缺陷；当前范围没有触发 COMPLEX 条件。",
+    "expected": "记录协调者检查失败和归因不清，以 VERIFIER_ESCALATION_REASON: CHECK_FAILED 派发一个有界、只读的独立 Verifier 做归因，并将聚合字段设为 VERIFICATION_MODE: FULL、VERIFICATION_OWNER: VERIFIER；Verifier 不修改源码。若确认是界内修复缺陷，冻结失败快照并开启新轮次，重新派发 Diagnoser 刷新内联契约，不能直接回 Implementer。"
   }
 ]
