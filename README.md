@@ -1,59 +1,31 @@
 # Multi-Agent Incident Resolution
 
-面向 Codex 的多 Agent 故障闭环 Skill：以证据和权限边界组织调查、根因诊断、独立任务规划、实施池、系统集成、回归验证与独立复核，并支持暂停和恢复。
+面向 Codex 的多 Agent 事件处理 Skill：入口确认后，以固定规则选择最小安全路线，并按需组织调查、诊断、规划、实施、集成、验证与独立复核。
 
 ## 适用范围
 
-适用于复杂服务故障、回归、多问题分诊、大型重构与多模块改造，以及明确要求分阶段 diagnose/repair/review 的任务。普通单缺陷修复、无缺陷证据的功能开发、普通重构或单纯代码解释不应自动触发此 Skill。
+适用于源码故障与回归修复、多问题分诊、大型重构或多模块修复，以及明确要求分阶段 `diagnose`、`repair`、`review` 或多 Agent 协作的任务。普通功能开发、代码解释和不需要分阶段协调的常规修改不应自动触发。
 
 ## 工作流
 
-完整链路为“入口确认 → 调查 → 诊断 → 修复选择 → 规划 → 实施 → 按需集成 → 验证 → 独立复核”。它是上限，不是必跑清单；无可信问题、无可执行修复、未选择修复、修改已存在或 review 范围为空时会保留准确原因并提前结束。
+需要修改源码的请求先进入[变更分类器](references/change-classifier.md)：`TINY` 采用有界单任务路线，`NORMAL` 采用标准调查与修复链路，`COMPLEX` 额外要求独立规划和独立复核。分类只决定路线，不扩大权限；指标未知时不得进入 `TINY`，运行中只允许向更重的路线升级。
 
-主 Agent 在“规划 → 实施”时把最终规划、任务、约束和当前状态收敛为活动上下文白名单；验证失败若确认属于修复缺陷，则关闭当前轮次，以失败证据和当前代码状态开启新的“诊断 → 规划 → 实施 → 验证”闭环。旧探索和实施推导保留为审计工件，但不继续占用下一阶段的工作上下文；新轮次不会重置累计尝试上限。
+规划先按完整修复闭环形成任务，再决定依赖、执行波次和执行模式。`SINGLE` 由一个实施 Agent 完成并跳过集成；`POOLED` 仅在任务可独立闭环且写入范围互斥时使用，并在所有实施 Agent 停止后，由一个集成 Agent 在明确的 `integration_scope` 内完成整合。
 
-规划按“独立修复闭环 → task → 依赖与 wave → execution mode → implementation Agent”确定执行形态，不按文件或修改点机械拆分，也不因 task 多就默认并行。默认用一个实施 Agent 串行完成；拆分、并行安全和 Agent 预算统一遵循 [工作流协议](references/workflow.md#task-and-pool-shape)，避免各入口重复维护规则。
+规划进入实施前，以及修复验证失败进入新轮次前，协调者会重建 `active-context.md` 白名单。旧探索保留为审计记录，不继续占用下一阶段上下文；升级和新轮次都不重置累计尝试次数。
 
-角色职责、默认路由、上下文边界与交接见 [Agent 角色与交接规范](docs/agent-roles.md)；阶段的执行与早退语义见 [工作流协议](references/workflow.md)。
+## 权威协议
 
-## 架构概览
+- Skill 入口、适用范围和核心安全边界：[SKILL.md](SKILL.md)
+- 分类输入、阈值、路线与升级：[变更分类器](references/change-classifier.md)
+- 阶段、早退、规划、实施、集成、验证与退出：[工作流协议](references/workflow.md)
+- 用户菜单与 Agent 路由披露：[确认协议](references/confirmation.md)
+- 多问题分诊与修复集合：[多问题协议](references/multi-issue.md)
+- 运行工件、`tasks.yaml` 与终态字段：[工件协议](references/artifacts.md)
+- 子 Agent 状态、观察、终止与回收：[状态协议](references/subagent-state.md)
+- 角色职责与上下文边界：[Agent 角色规范](docs/agent-roles.md)
 
-```mermaid
-flowchart LR
-    U[用户请求 / 事件输入] --> G[入口确认与范围路由]
-    G --> C[协调者]
-    C --> I[调查]
-    I --> D[诊断]
-    D --> P[规划]
-    P --> R[修复选择]
-    R --> W[实施]
-    W --> T{是否需要集成}
-    T -- 是 --> X[集成]
-    T -- 否 --> V[验证]
-    X --> V
-    V --> Q[独立复核]
-    Q --> O[完成 / 正常早退]
-    V -. 修复失败：新轮次 .-> D
-
-    C -.-> A[(运行工件与状态)]
-    A -.-> I
-    A -.-> D
-    A -.-> P
-    A -.-> W
-    A -.-> V
-```
-
-完整架构图（包含角色边界、协议依赖、工件流转和退出清理）见 [`skill-architecture.md`](skill-architecture.md)。
-
-## 核心约束
-
-- 入口菜单、单步检查点、修复选择和 Agent 升级统一使用 [确认协议](references/confirmation.md)。
-- 调查、诊断、规划、实施、集成、验证、独立复核和终态总结统一使用 [工作流协议](references/workflow.md)。
-- 多问题分诊和修复集合选择统一使用 [多问题协议](references/multi-issue.md)。
-- 运行元数据、派发台账、任务契约（`tasks.yaml`）和终态标记统一使用 [工件协议](references/artifacts.md)。
-- 子 Agent 的 Work Step、Checkpoint、任务状态、worker 运行时状态、停滞判断和终止后证据保留统一使用 [状态与超时协议](references/subagent-state.md)。
-
-核心不变量只保留一份：单文件单写入者由任务契约约束，终态交接与 worker 退出分别验证，敏感输出不进入工件，且只在正常完成时清理已校验的当前 `RUN_ARTIFACT_DIR`。
+完整关系图见 [skill-architecture.md](skill-architecture.md)。各项规则只在对应权威文件维护，其他文档仅提供入口和引用。
 
 ## 全局 Skill 同步
 

@@ -2,22 +2,22 @@
   {
     "id": 1,
     "prompt": "线上支付服务大量返回 500，订单、账务、网关三个微服务的日志里都有异常，先帮我查清楚根因再决定怎么修。",
-    "expected": "进入入口菜单（自动全流程/单步确认/Codex 原生处理）；在 debug 范围下先建证据与调查边界，再路由到诊断；不擅自改源码，多服务异常视为多问题分诊。"
+    "expected": "进入入口菜单（自动全流程/单步确认/Codex 原生处理）；结构化指标不完整时不能判为 TINY，先走 NORMAL 调查路线；调查确认跨模块影响后由协调者升级到 COMPLEX，再按多问题分诊，不擅自改源码。"
   },
   {
     "id": 2,
     "prompt": "utils/format.ts 里这个格式化函数性能有点差，帮我优化一下。",
-    "expected": "识别为普通单缺陷/无证据的功能改动，不在自动触发范围；应提示改用 diagnose 或说明本 Skill 不适用，而不是直接改代码。"
+    "expected": "这是普通性能优化请求，未明确要求事件处理、分阶段诊断/修复/复核或多 Agent 协作，不应自动触发本 Skill；由 Codex 原生流程处理。"
   },
   {
     "id": 3,
-    "prompt": "帮我独立 review 一下当前分支相对 main 的改动，重点看有没有引入回归和风险。",
-    "expected": "进入 review 范围（阶段 7，只读）；产出 review.md 与独立复核结论，不改变源码，区分 INDEPENDENT/LIMITED/UNAVAILABLE。"
+    "prompt": "帮我独立复核一下当前分支相对 main 的改动，重点看有没有引入回归和风险。",
+    "expected": "进入复核范围（阶段 7，只读）；产出 review.md 与独立复核结论，不改变源码，区分 INDEPENDENT/LIMITED/UNAVAILABLE。"
   },
   {
     "id": 4,
     "prompt": "自动全流程重构订单、账务和网关三个模块，根因和推荐修复集合已经确认；其中订单幂等、账务补偿和网关重试分别有独立目标、验收、执行路径和风险边界，请并行实施并完成整合。",
-    "expected": "从 repair 的阶段 3 开始；Planner 先确认三个独立修复闭环，检查低耦合、范围互斥、无共享核心设计决策、独立验证和失败隔离，记录拆分理由、execution_mode: parallel、execution_reason、task_dependencies 及执行前自检，再使用 DEDICATED 规划与不超过三个 Agent 的 POOLED 实施；所有实施 worker 退出后仍执行集成，再验证和独立复核。"
+    "expected": "从 repair 的阶段 3 开始；规划 Agent 先确认三个独立修复闭环，检查低耦合、范围互斥、无共享核心设计决策、独立验证和失败隔离，记录拆分理由、execution_mode: parallel、execution_reason、task_dependencies 及执行前自检，再使用 DEDICATED 规划与不超过三个 Agent 的 POOLED 实施；所有实施 Agent 退出后仍执行集成，再验证和独立复核。"
   },
   {
     "id": 5,
@@ -27,7 +27,7 @@
   {
     "id": 6,
     "prompt": "实施池的 TASK-001 已完成，TASK-002 判断修改已存在并返回 NO_CHANGE；tasks.yaml 预留了共享接缝，下一步怎么办？",
-    "expected": "POOLED 对应 INTEGRATION_REQUIRED: YES；不能按实际写入人数跳过阶段 5，必须在所有实施 worker 退出后由集成员按 integration_scope 完成或明确阻塞集成。"
+    "expected": "POOLED 对应 INTEGRATION_REQUIRED: YES；不能按实际写入人数跳过阶段 5，必须在所有实施 Agent 退出后由集成 Agent 按 integration_scope 完成集成或明确阻塞原因。"
   },
   {
     "id": 7,
@@ -37,27 +37,27 @@
   {
     "id": 8,
     "prompt": "第一轮修改完成，但验证中的原始复现仍然失败。继续修，不要受上一轮实现思路影响。",
-    "expected": "关闭当前 REPAIR_ROUND 为 VERIFICATION_FAILED，保留验证命令、错误、分类和当前工作树，递增轮次并为 TARGET_PHASE: DIAGNOSIS 重建 active-context.md；使用新鲜有界上下文重新诊断和规划，不直接把失败结果发回 writer，且累计 attempt 不清零。"
+    "expected": "关闭当前 REPAIR_ROUND 为 VERIFICATION_FAILED，保留验证命令、错误、分类和当前工作树，递增轮次并为 TARGET_PHASE: DIAGNOSIS 重建 active-context.md；使用全新的有界上下文重新诊断和规划，不直接把失败结果发回写入 Agent，且累计尝试次数不清零。"
   },
   {
     "id": 9,
-    "prompt": "这次修复要同时修改控制器、服务和测试文件。请按文件拆成三个 task，并尽量多派 Agent。",
-    "expected": "Planner 不因文件、模块或函数不同而拆分；先识别独立修复闭环，相关控制器、服务和测试修改默认合并为一个 task、一个 implementation Agent。完成计划前自检可合并项、task 粒度和 Agent 数量；只有四项独立性条件全部成立才拆分，并记录为什么拆分、为什么不能合并及并行收益。"
+    "prompt": "这次修复要同时修改控制器、服务和测试文件。请按文件拆成三个任务，并尽量多派 Agent。",
+    "expected": "规划 Agent 不因文件、模块或函数不同而拆分；先识别独立修复闭环，相关控制器、服务和测试修改默认合并为一个任务、一个实施 Agent。完成计划前自检可合并项、任务粒度和 Agent 数量；只有四项独立性条件全部成立才拆分，并记录为什么拆分、为什么不能合并及并行收益。"
   },
   {
     "id": 10,
-    "prompt": "规划得到四个候选 implementation task，准备各派一个 Agent 并行执行。",
-    "expected": "默认实施 Agent 上限为三个；Planner 先检查候选 task 是否都是独立修复闭环且不可合并。若不能同时说明无法合并原因、四路并行必要性和具体并行收益，就合并候选工作并把 Agent 数降到三个以内。"
+    "prompt": "规划得到四个候选实施任务，准备各派一个 Agent 并行执行。",
+    "expected": "默认实施 Agent 上限为三个；规划 Agent 先检查候选任务是否都是独立修复闭环且不可合并。若不能同时说明无法合并原因、四路并行必要性和具体并行收益，就合并候选工作并把 Agent 数降到三个以内。"
   },
   {
     "id": 11,
-    "prompt": "有三个 implementation task：先调整核心接口，再修改两个调用模块。文件范围互不重叠，请直接并行。",
-    "expected": "不能仅凭 file_scope 互斥并行。核心接口是两个调用任务的 task_dependencies，且共享接口设计；Planner 选择 mixed：基础接口任务单独在前置 wave 串行完成并稳定契约，两个低耦合、可独立验证且失败隔离的调用任务通过全部并行条件后进入后续并行 wave，最后统一集成。"
+    "prompt": "有三个实施任务：先调整核心接口，再修改两个调用模块。文件范围互不重叠，请直接并行。",
+    "expected": "不能仅凭 file_scope 互斥并行。核心接口是两个调用任务的 task_dependencies，且共享接口设计；规划 Agent 选择 mixed：基础接口任务单独在前置波次串行完成并稳定契约，两个低耦合、可独立验证且失败隔离的调用任务通过全部并行条件后进入后续并行波次，最后统一集成。"
   },
   {
     "id": 12,
-    "prompt": "四个 task 没有显式依赖，修改范围也不重叠，按默认策略执行。",
-    "expected": "多个 task 不自动产生多个并行 Agent。Planner 默认从 sequential 评估，继续检查任务耦合、核心设计决策、独立验证和失败隔离；只有全部五项并行条件成立且并行收益明确时才选择 parallel，否则按单任务 wave 串行，并在 tasks.yaml 记录 execution_mode、execution_reason、task_dependencies 和 wave。"
+    "prompt": "四个任务没有显式依赖，修改范围也不重叠，按默认策略执行。",
+    "expected": "多个任务不自动产生多个并行 Agent。规划 Agent 默认从 sequential 评估，继续检查任务耦合、核心设计决策、独立验证和失败隔离；只有全部五项并行条件成立且并行收益明确时才选择 parallel，否则按单任务波次串行，并在 tasks.yaml 记录 execution_mode、execution_reason、task_dependencies 和 wave。"
   },
   {
     "id": 13,
@@ -67,7 +67,7 @@
   {
     "id": 14,
     "prompt": "只读调查子 Agent 没有检查交接元数据，返回了自动全流程/单步确认/Codex 原生处理菜单，没有调查实际任务。父 Agent 应如何处理？",
-    "expected": "父 Agent 标记 RESULT_CLASSIFICATION: HANDOFF_PROTOCOL_FAILURE，而不是业务调查失败；回收原 worker，保留原记录，并仅自动恢复一次：使用新的派发任务 ID 和状态路径、RECOVERS_DISPATCH 链接、相同范围/路由/权限及完整元数据重新派发。该恢复不消耗实施 attempt；若再次失败或需要改变范围、路由、权限或风险，则停止自动派发并返回协调或确认门禁。"
+    "expected": "父 Agent 标记 RESULT_CLASSIFICATION: HANDOFF_PROTOCOL_FAILURE，而不是业务调查失败；回收原子 Agent，保留原记录，并仅自动恢复一次：使用新的派发任务 ID 和状态路径、RECOVERS_DISPATCH 链接、相同范围/路由/权限及完整元数据重新派发。该恢复不消耗实施尝试次数；若再次失败或需要改变范围、路由、权限或风险，则停止自动派发并返回协调或确认门禁。"
   },
   {
     "id": 15,
@@ -78,5 +78,25 @@
     "id": 16,
     "prompt": "当前只有 ISSUE-001 可修复，而且推荐修复集合和全部修复集合都是 ISSUE-001。请给出修复选择。",
     "expected": "展示菜单前按实际问题集合、范围、约束和下一阶段语义做运行时归一化；推荐修复与全部修复效果完全相同，因此合并为一个“修复此问题（推荐）”选项并明确 ISSUE-001，其余不同语义的修改、暂停和结束选项保留并连续编号。"
+  },
+  {
+    "id": 17,
+    "prompt": "自动全流程按下面的变更信封修复拼写：change_scope={affected_files: 1, affected_paths: [src/format.ts], estimated_changes: 2}; risk={api_change: false, database_change: false, schema_change: false, architecture_change: false}; dependency={cross_module: false, external_dependency: false}。",
+    "expected": "变更分类器作为非 Agent 角色命中 TINY；协调者直接物化一个 tasks.yaml 单任务，派发一个实施 Agent，随后由协调者做快速只读验证；不派调查、诊断、规划、集成、验证或独立复核 Agent。"
+  },
+  {
+    "id": 18,
+    "prompt": "修复一个单文件 bug，但实现时发现需要同时改调用模块，且原始测试无法在单文件边界内快速恢复。",
+    "expected": "TINY 实施 Agent 不得扩大 file_scope 或自行重新设计；以终态 BLOCKED 交接在结果中记录 UPGRADE_REQUESTED，协调者记录不可变的失败/升级证据并把路线单向升级到 NORMAL，重新经过调查、诊断/规划和标准验证，累计尝试次数不清零。"
+  },
+  {
+    "id": 19,
+    "prompt": "请按结构化变更信封修改公开 API 和数据库迁移：change_scope={affected_files: 4, affected_paths: [controller.ts, service.ts, migration.sql, tests.ts], estimated_changes: 120}; risk={api_change: true, database_change: true, schema_change: true, architecture_change: false}; dependency={cross_module: true, external_dependency: false}。",
+    "expected": "任一 API 或数据库风险标记为 true 即分类为 COMPLEX；使用独立规划 Agent 和独立复核 Agent，不能按文件机械拆分任务。若规划得到一个不可拆闭环则使用 SINGLE 并跳过集成；只有形成多个合格任务的 POOLED 才执行集成。"
+  },
+  {
+    "id": 20,
+    "prompt": "NORMAL 路线的诊断发现原方案会改变模块边界和生命周期所有权，应该继续让单个实施 Agent 直接改吗？",
+    "expected": "不应直接实施；协调者用新增结构化事实重新运行变更分类器，将 NORMAL 单向升级到 COMPLEX，切换到 DEDICATED 的独立规划 Agent 并补齐独立复核；是否集成由最终 SINGLE/POOLED 拓扑决定，同时保留仍有效的调查/诊断证据。"
   }
 ]

@@ -1,10 +1,14 @@
 # Workflow
 
-Use all applicable stages for `debug`, stages 1-2 for standalone `diagnose`, stages 3-7 for `repair`, and stage 7 for standalone `review`, unless an early-exit rule below applies. At `repair` entry, validate and normalize the supplied diagnosis and repair selection, then enter stage 3 to create or refresh `plan.md` and `tasks.yaml`; return to stages 1-2 only when the diagnosis is stale or incomplete, or when later evidence invalidates the repair direction. A standalone `review` remains project-source read-only and never transitions into diagnosis, planning, or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
+Use the route selected by [Change Classifier](change-classifier.md) for source-changing `debug` and `repair`; that reference is the sole authority for thresholds, route composition, and upgrades. Standalone `diagnose` uses stages 1-2 and standalone `review` uses stage 7. At `repair` entry, validate and normalize the supplied diagnosis and repair selection before the selected route's first writable phase. Return to stages 1-2 only when the diagnosis is stale or incomplete, or later evidence invalidates it. A standalone `review` remains project-source read-only and never transitions into diagnosis, planning, or repair without a new user-authorized scope. Repository-specific instructions override storage locations, commands, and commit policy.
 
-The seven stages are: 1 Investigation, 2 Diagnosis, 3 Planning, 4 Implementation, 5 Integration, 6 Verification, and 7 Independent review. Stage 5 is conditional: planning sets `INTEGRATION_REQUIRED: NO` for `SINGLE` implementation and `YES` for `POOLED` implementation.
+The seven stages are: 1 Investigation, 2 Diagnosis, 3 Planning, 4 Implementation, 5 Integration, 6 Verification, and 7 Independent review. Stage 5 is topology-dependent: `SINGLE` records `INTEGRATION_REQUIRED: NO`; `POOLED` records `YES` and runs integration after every implementer stops.
 
 Stages 2 and 3 always decide different questions—stage 2 decides what is wrong, stage 3 decides how the approved repair is executed—but they do not always run in different Agents. A minimal repair keeps planning inline in the same diagnostician; a structural or multi-task repair moves it to a dedicated planner with its own context.
+
+## Change-classifier routing
+
+After run control is resolved, apply [the classifier contract](change-classifier.md) before the first route phase and persist `classification.md`. Then execute exactly the selected route; do not maintain a second route table here. Classification is bookkeeping, not an Agent, stage, authority grant, or replacement for repair selection and safety gates. Reuse compatible evidence after an upgrade instead of repeating a phase solely to change its label.
 
 ## Early-exit rules
 
@@ -81,7 +85,7 @@ Before starting diagnosis, apply [Early-exit rules](#early-exit-rules). If no cr
 
 ## 2. Diagnosis
 
-Use an independent diagnosis Agent, default `gpt-5.6-sol/medium`. It must read the incident input and `evidence.md`, inspect relevant source as needed, and make no edits.
+Use an independent diagnosis Agent, default `gpt-5.6-sol/medium`, for `normal` and `complex` routes. It must read the incident input and `evidence.md`, inspect relevant source as needed, and make no edits. Tiny has already passed the classifier's bounded-change gate and does not dispatch this role; if its implementer cannot stay within that gate, upgrade to Normal before continuing.
 
 Diagnosis answers what is broken, why, and how far it reaches. Whether it also plans depends on `PLANNING_MODE`:
 
@@ -114,7 +118,7 @@ Consider expert escalation when confidence is low, minimal versus structural is 
 
 ## 3. Planning
 
-Planning turns the frozen repair set into executable work. It runs after diagnosis and after repair selection, and no implementer is dispatched before `plan.md` and `tasks.yaml` exist.
+Planning turns the frozen repair set into executable work for Normal and Complex routes. It runs after diagnosis and repair selection, and no Normal/Complex implementer is dispatched before `plan.md` and `tasks.yaml` exist. Tiny is the documented exception: the coordinator materializes its one-task `tasks.yaml` from the complete classifier envelope and does not create `plan.md`.
 
 Enter planning only with `DIAGNOSIS_STATUS: COMPLETE`, `REPAIR_APPROVED: YES` for every selected issue, and a frozen, non-pending `SELECTED_ISSUES`.
 
@@ -126,10 +130,10 @@ The coordinator chooses `PLANNING_MODE` before this stage starts and records it 
 
 | Mode | When | Who runs stage 3 | Route |
 |---|---|---|---|
-| `INLINE` | `MINIMAL`, one selected issue or one shared repair direction, and a single-module blast radius | the same diagnostician and retained context; a gate may require a new bounded dispatch | `gpt-5.6-sol/medium` |
-| `DEDICATED` | `STRUCTURAL` or `MIXED`; more than one selected issue with distinct file scopes; multi-module, migration, or deletion work; parallel implementation requested; or the user asks for a refactor plan | a separate planner Agent with its own context | `gpt-5.6-luna/max` |
+| `INLINE` | `NORMAL` with one selected issue or one shared repair direction, `MINIMAL`, and a single-module blast radius | the same diagnostician and retained context; a gate may require a new bounded dispatch | `gpt-5.6-sol/medium` |
+| `DEDICATED` | `COMPLEX`, or any `STRUCTURAL`/`MIXED`, multi-issue, multi-module, migration, deletion, parallel, or explicitly refactor-planned repair | a separate planner Agent with its own context | `gpt-5.6-luna/max` |
 
-Default to `INLINE`. The point of the split is context isolation for large changes, not ceremony for small ones: a one-task repair does not need a separate planner identity or fresh context.
+Default to `INLINE` only for the Normal route. Complex always uses `DEDICATED`; the point of the split is context isolation for large changes, not ceremony for small ones.
 
 In `INLINE` mode the diagnostician also writes `plan.md` and a one-task `tasks.yaml`, reusing its canonical Agent label. When repair selection or a single-step checkpoint interrupts the stage transition, it first completes the diagnosis handoff; after the gate, the coordinator resumes the same Agent/context with a new bounded planning dispatch, ledger record, and task-state path. If it discovers that the repair needs more than one task, dependency waves, or an integration step, it must stop planning, record `PLAN_STATUS: BLOCKED` with the evidence, and hand back to the coordinator, which switches the run to `DEDICATED` and dispatches a planner. It must not stretch an inline plan into a multi-task decomposition.
 
@@ -149,7 +153,7 @@ Produce `plan.md` with:
 - risk, blast radius, rollback approach, and the verification strategy for stage 6;
 - `PLAN_STATUS: COMPLETE | BLOCKED`.
 
-Produce `tasks.yaml` using [the task-contract schema](artifacts.md#task-contract). It records `execution_mode`, `execution_reason`, every subtask's `task_dependencies` and wave, owner, exclusive file scope, and acceptance conditions, plus `integration_required` and the integrator's allowed `integration_scope`. A task is dispatchable only when its owner, scope, dependencies, wave, and acceptance conditions are explicit; integration is writable only when its scope is explicit.
+Produce `tasks.yaml` using [the task-contract schema](artifacts.md#task-contract). It records `execution_mode`, `execution_reason`, every subtask's `task_dependencies` and wave, owner, exclusive file scope, and acceptance conditions, plus `integration_required` and `integration_scope`. A task is dispatchable only when its owner, scope, dependencies, wave, and acceptance conditions are explicit; `SINGLE` keeps the integration scope empty, while `POOLED` must declare the Integrator's write boundary.
 
 In `INLINE` mode the dependency graph, waves, and execution strategy collapse to one line each: one task, one wave, one implementer, and `execution_mode: sequential`. Record them in that form instead of omitting them, so the task contract stays uniform across both modes.
 
@@ -185,11 +189,11 @@ In `debug` or `repair`, if planning produces no executable task, apply [Early-ex
 
 Consider expert escalation when the planner cannot produce a safe decomposition, dependencies are circular or unresolvable, every candidate violates file-disjointness, or the same plan direction has been rejected twice. Escalation follows the same authorization contract in [confirmation.md](confirmation.md); the expert is read-only and returns `PROCEED` or `RETURN_TO_DIAGNOSIS`.
 
-After `PLAN_STATUS: COMPLETE`, perform the mandatory planning-to-implementation context reset. Retain the final plan, `tasks.yaml`, frozen issue selection, approved invariants, repository and user constraints, current worktree snapshot, run state, and next implementation gate. Exclude planning exploration and all evidence not needed by a listed task. In `STEP` mode, build the capsule before presenting the implementation checkpoint, then revalidate its revision and worktree summary after approval; any drift returns to planning instead of dispatching against stale context.
+After `PLAN_STATUS: COMPLETE`, perform the mandatory planning-to-implementation context reset for Normal and Complex. Retain the final plan, `tasks.yaml`, frozen issue selection, approved invariants, repository and user constraints, current worktree snapshot, run state, route, and next implementation gate. Exclude planning exploration and all evidence not needed by a listed task. Tiny has no planning reset; its materialized task contract and `classification.md` are its bounded implementation context. In `STEP` mode, build the capsule before presenting the implementation checkpoint, then revalidate its revision and worktree summary after approval; any drift returns to planning instead of dispatching against stale context.
 
 ## 4. Implementation
 
-Proceed only with `DIAGNOSIS_STATUS: COMPLETE`, `PLAN_STATUS: COMPLETE`, a valid per-issue approval, and an explicit repair-set choice under [multi-issue.md](multi-issue.md). Freeze `SELECTED_ISSUES` before writing. Newly discovered issues return to triage and selection rather than silently expanding implementation.
+Tiny is the sole exception to the normal preconditions: after a complete Tiny classification and the applicable repair authorization, the coordinator materializes a single bounded task in `tasks.yaml`, freezes its change scope, and may dispatch one Implementer without `DIAGNOSIS_STATUS: COMPLETE` or `PLAN_STATUS: COMPLETE`. This task must carry the exact `file_scope` and executable acceptance conditions from the structured envelope. Normal and Complex proceed only with `DIAGNOSIS_STATUS: COMPLETE`, `PLAN_STATUS: COMPLETE`, a valid per-issue approval, and an explicit repair-set choice under [multi-issue.md](multi-issue.md). Freeze `SELECTED_ISSUES` or the Tiny change scope before writing. Newly discovered issues return to triage and selection rather than silently expanding implementation.
 
 Create and dispatch implementation Agents only as authorized by the validated `execution_mode`, one implementer per task in `tasks.yaml`. `sequential` dispatches one task at a time in wave order; `parallel` dispatches each eligible wave as one concurrent batch; `mixed` alternates single-task and concurrent waves exactly as planned. Start no task before every `task_dependencies` entry is terminal-complete, and never let two implementers write the same file concurrently. `IMPLEMENTATION_MODE: SINGLE` dispatches exactly one implementer owning one complete repair closure; `POOLED` dispatches several, each with a stable identifier such as `实施 Agent A`. Do not pre-create later-wave Agents or expand the pool merely because more tasks, files, or runtime slots are available. If current state invalidates the planned mode or a parallel-safety condition, stop before the affected wave and return to planning; implementers and the integrator do not reschedule the run.
 
@@ -197,7 +201,7 @@ Keep each implementer's context small. Give it only:
 
 - a short incident summary and the frozen issue IDs its task covers;
 - its own `tasks.yaml` entry: task ID, exclusive file scope, `task_dependencies`, wave, and acceptance conditions;
-- the relevant excerpts of `evidence.md`, `diagnosis.md`, and `plan.md` for that task, or their paths when an excerpt would be lossy;
+- the relevant excerpts of `classification.md`, `evidence.md`, `diagnosis.md`, and `plan.md` for that task, or their paths when an excerpt would be lossy;
 - repository instructions, the validated `active-context.md`, the current working-tree snapshot, the run directory, repair round, and attempt number;
 - its assigned `tasks/<task-id>/state.md` path, terminal handoff states, and the obligation to end its turn immediately after handoff.
 
@@ -215,6 +219,7 @@ Every implementer must:
 - avoid opportunistic cleanup and unrelated formatting;
 - follow repository-specific environment and commit rules;
 - leave cross-task seams, interface mismatches, and out-of-scope defects recorded instead of fixing them.
+- for Tiny, stop with a terminal `BLOCKED` handoff whose result records `UPGRADE_REQUESTED` when the actual scope, dependency, risk, or design no longer matches `classification.md`; do not widen the edit or continue a second design inside the Tiny task.
 
 Each implementer produces `implementation/tasks/<TASK-ID>.md` with its task ID, covered issue IDs, attempt number, files changed, behavioral differences, deviations from the task contract, tests added, unresolved seams handed to integration, and `TASK_IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED | FAILED | CANCELLED`.
 
@@ -226,9 +231,9 @@ If the implementer finds that the approved repair may already be present, use `I
 
 ## 5. Integration
 
-Integration is a conditional assembly phase, not a second implementation. Run it when `INTEGRATION_REQUIRED: YES`, after the whole implementer pool has stopped, even if one or more tasks ended `NO_CHANGE`. When it is `NO`, record `INTEGRATION_STATUS: SKIPPED` with the reason and go to stage 6. Do not infer this gate afterward from the number of files or workers that happened to write.
+Integration is a conditional assembly phase, not a second implementation. Run it only for `POOLED` after every implementation worker has stopped, even if one or more tasks ended `NO_CHANGE`. `SINGLE` records `INTEGRATION_REQUIRED: NO` and `INTEGRATION_STATUS: SKIPPED`, then goes to stage 6. The planned task topology determines this gate; do not infer it afterward from how many files or workers happened to write.
 
-Assign exactly one integrator after every implementer worker has stopped, and let it be the only source writer while it runs. Give it the incident input, `plan.md`, `tasks.yaml`, every `implementation/tasks/<TASK-ID>.md`, the frozen `SELECTED_ISSUES`, the current diff, and the integration strategy from `plan.md`. Its write authority is limited to `run.integration_scope`; an additional required path returns to planning instead of being edited opportunistically.
+Assign exactly one Integrator after every implementation worker has stopped, and let it be the only source writer while it runs. Give it the incident input, `classification.md`, `plan.md`, `tasks.yaml`, every `implementation/tasks/<TASK-ID>.md`, the frozen `SELECTED_ISSUES`, the current diff, and the integration strategy from `plan.md`. Its write authority is limited to `run.integration_scope`; an additional required path returns to planning instead of being edited opportunistically.
 
 The integrator must:
 
@@ -245,7 +250,9 @@ Produce `integration.md` with the tasks merged, conflicts and interface mismatch
 
 ## 6. Verification
 
-Verification is a separate judgment from implementation and integration. It runs in a delegated agent after every writer has stopped editing, and it judges only whether the result satisfies the requirement and the acceptance criteria.
+Verification is a separate judgment from implementation and integration. For Tiny, after the Implementer has handed off and its worker is confirmed stopped, the coordinator performs the bounded quick check itself; no Verifier Agent is dispatched. Normal and Complex use a delegated Verifier after every writer has stopped editing. Each route judges only whether the result satisfies its requirement and acceptance criteria.
+
+Tiny quick verification checks the task acceptance conditions, the focused behavior, the final diff, and disposable diagnostic residue. It does not expand into broad regression or recurrence discovery. A passing quick check completes the Tiny route; an in-scope failure that cannot be resolved inside the original one-file contract closes an immutable failure snapshot and upgrades to Normal through the repair-round rules below. Environmental or pre-existing failures remain blocked instead of triggering an automatic retry.
 
 The verifier must not merge branches, resolve conflicts, repair defects, or edit source; it verifies and reports. Classify each finding by the phase that owns the correction:
 
@@ -275,9 +282,9 @@ Produce `verification.md` with per-issue commands and results, per-task acceptan
 
 ### Verification-failure repair rounds
 
-`REPAIR_ROUND` starts at `1` when the first selected repair enters planning. A verification result of `FAIL`, or a `PARTIAL` result that identifies an in-scope repair defect, closes the current round as `VERIFICATION_FAILED`. Before any source writer is dispatched again, the coordinator must:
+`REPAIR_ROUND` starts at `1` when the first selected repair enters planning, or when a Tiny task is frozen for its first implementation. A verification result of `FAIL`, or a `PARTIAL` result that identifies an in-scope repair defect, closes the current round as `VERIFICATION_FAILED`. Before any source writer is dispatched again, the coordinator must:
 
-1. reclaim the verifier and freeze the current `verification/round-<NNN>.md`, including the exact failing command/assertion, concise error, failure classification, affected issue/task IDs, current revision and worktree state;
+1. finish the coordinator quick-validation record or reclaim the delegated Verifier, then freeze the current `verification/round-<NNN>.md`, including the exact failing command/assertion, concise error, failure classification, affected issue/task IDs or `CHANGE_ID`, current revision and worktree state;
 2. append the current round's `VERIFICATION_FAILED` event and the next round's `OPENED` event to `repair-rounds.md`, increment `REPAIR_ROUND`, and atomically rebuild `active-context.md` for `TARGET_PHASE: DIAGNOSIS` with only the current state and the immutable verification-failure references;
 3. start a fresh bounded diagnosis dispatch from that capsule, then run stage 3 again to refresh the plan and `tasks.yaml` before implementation.
 
@@ -287,9 +294,9 @@ The new diagnosis must reassess the failure against the current code and may con
 
 ## 7. Independent review
 
-Use a read-only reviewer that neither implemented nor integrated the patch whenever the client and current Agent ownership make that possible. Prefer a fresh Agent with isolated context; a coordinator that did not write the patch also qualifies. The reviewer reads the incident input, the requirement, all artifacts, applicable repository instructions, Git diff, changed source, and relevant tests. It must not edit, commit, stash, or reset anything. Record `REVIEW_INDEPENDENCE: INDEPENDENT`.
+Tiny and Normal intentionally end after their applicable verification: they do not dispatch an independent reviewer and must not represent that omission as a pass. Record `INDEPENDENT_REVIEW: SKIPPED_BY_ROUTE`. Complex and standalone `review` use this stage. For Complex, use a read-only reviewer that neither implemented nor integrated the patch whenever the client and current Agent ownership make that possible. Prefer a fresh Agent with isolated context; a coordinator that did not write the patch also qualifies. The reviewer reads the incident input, requirement, relevant artifacts, applicable repository instructions, final diff, changed source, and verification results. It must not edit, commit, stash, or reset anything. Record `REVIEW_INDEPENDENCE: INDEPENDENT`.
 
-If no independent reviewer is available, a coordinator that implemented or integrated the patch may perform a separate read-only fallback pass only when all of these are true: one selected issue, `MINIMAL`, `SINGLE` implementation mode, first implementation attempt, no integration work, low blast radius, and no security, public-contract, persistence, migration, concurrency, lifecycle, or state-machine impact. Stop editing before the fallback, re-read the stated requirements and final diff, run the same review rubric, record `REVIEW_INDEPENDENCE: LIMITED`, and disclose the limitation. For any other repair, record `REVIEW_INDEPENDENCE: UNAVAILABLE` and `DECISION: BLOCKED`; do not weaken the classification merely to complete the run.
+If a route that requires independent review has no independent reviewer available, a coordinator that implemented or integrated the patch may perform a separate read-only fallback pass only when all of these are true: one selected issue, `MINIMAL`, `SINGLE` implementation mode, first implementation attempt, no integration work, low blast radius, and no security, public-contract, persistence, migration, concurrency, lifecycle, or state-machine impact. This fallback does not reintroduce review into Tiny or Normal, whose omission is explicit in the route contract. Stop editing before the fallback, re-read the stated requirements and final diff, run the same review rubric, record `REVIEW_INDEPENDENCE: LIMITED`, and disclose the limitation. For any other required-review repair, record `REVIEW_INDEPENDENCE: UNAVAILABLE` and `DECISION: BLOCKED`; do not weaken the classification merely to complete the run.
 
 Judge the requirement, the final code, and the verification results together. Review adversarially for:
 
@@ -315,7 +322,7 @@ Produce `review.md` with findings and terminal markers:
 - `REVIEW_INDEPENDENCE: INDEPENDENT | LIMITED | UNAVAILABLE`
 - `DECISION: PASS | FAIL | BLOCKED`
 
-For `debug` or `repair`, if review fails and the total implementation-attempt limit is not exhausted, return with the findings to the phase that owns them: diagnosis for a requirement or repair-direction defect; planning for a decomposition, task-boundary, or acceptance defect; the owning task's implementation for a single-task defect; integration for a cross-task assembly defect. For standalone `review`, report the findings and stop with `DECISION: FAIL` or `BLOCKED`; do not diagnose, edit, or start a repair loop. Completion of an implemented repair requires `DECISION: PASS` and an independence value allowed by the rules above.
+For `debug` or `repair`, if the required Complex review fails and the total implementation-attempt limit is not exhausted, return with the findings to the phase that owns them: diagnosis for a requirement or repair-direction defect; planning for a decomposition, task-boundary, or acceptance defect; the owning task's implementation for a single-task defect; integration for a cross-task assembly defect. For standalone `review`, report the findings and stop with `DECISION: FAIL` or `BLOCKED`; do not diagnose, edit, or start a repair loop. Completion of a Complex or standalone review requires `DECISION: PASS` and an independence value allowed by the rules above; Tiny and Normal complete from their route-specific verification result and explicitly skip independent review.
 
 ## Completion summary
 
@@ -331,7 +338,7 @@ Use these visible labels under the section. Write `无` only when absence is con
 - `发现的问题` — what was observed and the issue IDs or shared root-cause groups it represents; when multiple issues exist, separate fixed, failed/blocked, deferred, duplicate, and not-a-defect IDs;
 - `根因` — the confirmed causal chain and violated invariant;
 - `修改状态` — exactly `已修改`, `部分修改`, or `未修改`, referring only to changes made by this workflow run; list the principal files or components changed, or state why no modification was made without counting pre-existing user changes;
-- `处理方式` — diagnosis, planning, repair, and integration actions taken, repair type, planning mode, implementation mode with the number of implementers when pooled, execution mode and decisive scheduling reason, and the meaningful behavioral difference; write `未实施修复` when applicable;
+- `处理方式` — Change Classifier route (`TINY`/`NORMAL`/`COMPLEX`), diagnosis, planning, repair, and integration actions taken, repair type, planning mode, implementation mode with the number of implementers when pooled, execution mode and decisive scheduling reason, and the meaningful behavioral difference; state coordinator-owned Tiny quick verification and route-skipped review explicitly; write `未实施修复` when applicable;
 - `验证结果` — focused and regression checks, their outcomes, and the independent-review decision or limitation;
 - `子 Agent 结论` — when delegation occurred, identify every dispatched Agent and synthesize its terminal outcome, conclusion, material limitation, and effect on the workflow; in either run-control mode, use every Agent's retained canonical disclosure label and apply the same pre-send gate; for an implementer pool, group members by task ID instead of repeating near-identical outcomes; otherwise write `不适用`;
 - `遗留事项` — unresolved, deferred, blocked, partially verified issues, remaining risks, and the concrete next action;
