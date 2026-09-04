@@ -2,7 +2,9 @@
 
 Artifacts are concise decision records. Include exact file paths, symbols, commands, and outcomes; omit essays and repeated repository context. Never include credentials or raw secret-bearing output.
 
-Record `RUN_MODE: DEBUG | DIAGNOSE | REPAIR | REVIEW`, `RUN_CONTROL: AUTO | STEP`, `ENTRY_SELECTION_INDEX: 1 | 2`, `ARTIFACT_ROOT`, and `RUN_ARTIFACT_DIR` in the first artifact for the incident. Resolve both paths using the discovery and naming contract in [workflow.md](workflow.md#workspace-and-artifact-location). Entry option `3` (**Codex 原生处理**) disables this workflow before a run starts, so do not create an artifact solely to record it; processing continues under the default Codex workflow. When paused, record the last completed phase and exact pending action without marking an unstarted later phase complete.
+Record `AGENT_TYPE: ENTRY`, `RUN_MODE: DEBUG | DIAGNOSE | REPAIR | REVIEW`, `RUN_CONTROL: AUTO | STEP`, `ENTRY_SELECTION_INDEX: 1 | 2`, `ARTIFACT_ROOT`, and `RUN_ARTIFACT_DIR` in the first artifact for the incident. Resolve both paths using the discovery and naming contract in [workflow.md](workflow.md#workspace-and-artifact-location). Entry option `3` (**Codex 原生处理**) disables this workflow before a run starts, so do not create an artifact solely to record it; processing continues under the default Codex workflow. When paused, record the last completed phase and exact pending action without marking an unstarted later phase complete.
+
+Treat the first artifact and dispatch ledger as workflow metadata, each Agent's reasoning as Agent context, and the bounded assignment as task payload. Workflow state is read from the persisted metadata and validated against current artifacts; never reconstruct it from conversation or model memory.
 
 Record `EARLY_EXIT_REASON` and `EARLY_EXIT_PHASE` in the terminal artifact. Use `NONE` for both on a full run. The reason vocabulary is intentionally specific; do not collapse an unresolved repair, a deferred issue, a declined repair, an already-present change, and an empty review scope into a generic no-change result.
 
@@ -15,10 +17,11 @@ Maintain one proposal/dispatch ledger. Give every proposal or dispatch a stable 
 Each record contains:
 
 - identity and routing: phase, role, default route, proposed and effective model/effort, canonical disclosure label, and reason;
+- run-control handoff: the canonical metadata block required and validated by [subagent-state.md](subagent-state.md#run-control-handoff);
 - assignment: bounded task, high-level steps/milestones, expected result/artifact, canonical state path plus optional events path, terminal handoff states, and the obligation to end the subagent turn immediately after handoff;
 - channel guards: any client transport limits for dispatch/result messages, kept separate from state and timeout decisions;
 - observation plan: initial wait, health-check cadence, credible next milestone, and coordinator-owned `OBSERVED_STATUS: NORMAL | FORCE_TERMINATION_ELIGIBLE`; apply the fixed threshold from [subagent-state.md](subagent-state.md) rather than copying it into each row;
-- decision and outcome: displayed upgrade choice/index when applicable, dispatch status, result status, terminal conclusion or blocker, `TASK_HANDOFF_STATUS: ACTIVE | TERMINAL | UNAVAILABLE`, and `USER_RELAY_STATUS: PENDING | RELAYED | NOT_DISPATCHED`;
+- decision and outcome: displayed upgrade choice/index when applicable, dispatch status, result status, `RESULT_CLASSIFICATION: HANDOFF_PROTOCOL_FAILURE` when applicable, terminal conclusion or blocker, optional `RECOVERS_DISPATCH` link, `TASK_HANDOFF_STATUS: ACTIVE | TERMINAL | UNAVAILABLE`, and `USER_RELAY_STATUS: PENDING | RELAYED | NOT_DISPATCHED`;
 - execution lifecycle: coordinator-owned `WORKER_LIFECYCLE: ACTIVE | TERMINAL_CONFIRMED | TERMINATION_FAILED` and `TERMINAL_CONFIRMATION: RUNTIME_STATUS | EXPLICIT_CLOSE | EXPLICIT_INTERRUPT | UNAVAILABLE`. Record task handoff separately from runtime termination and apply [the terminal-handling protocol](subagent-state.md#terminal-handling) without restating its stop or reclamation rules in the ledger.
 
 Use numeric units for counts, bytes, and durations. Channel guards are not work limits or timeout evidence. Preserve old rows without inventing historical values. Reuse the stored disclosure label verbatim. Record whether an upgrade used exact prior authorization or a displayed confirmation. Count every above-default proposal in `AGENT_UPGRADE_COUNT`; use `MIXED` when outcomes differ. Set `RELAYED` only after the terminal result is visible in the main conversation.
@@ -134,6 +137,7 @@ Related run artifacts:
 Use applicable markers one per line so humans and simple tooling can verify state:
 
 ```text
+AGENT_TYPE: ENTRY
 RUN_MODE: DEBUG | DIAGNOSE | REPAIR | REVIEW
 RUN_CONTROL: AUTO | STEP
 ENTRY_SELECTION_INDEX: 1 | 2

@@ -10,6 +10,31 @@ tasks/<task-id>/events.jsonl
 
 The subagent is the normal writer of `state.md`. The coordinator reads it and records observation decisions in the dispatch ledger; it must not rewrite state while the task is active. Use `events.jsonl` only when a complex or abnormal task needs an append-only diagnostic history. Do not create heartbeat, polling, or auxiliary status files.
 
+## Run-control handoff
+
+Agent type is independent of phase role. The Agent that receives the original incident request and owns user gates is `ENTRY`; every dispatched Agent is `EXECUTION`, whether it investigates, diagnoses, plans, implements, integrates, verifies, or reviews. An execution Agent performs its bounded assignment and never initializes the workflow or asks the user to choose a run mode.
+
+Before every dispatch, the coordinator must persist this workflow-metadata block in that dispatch's ledger record and attach the same values plus the record path to the dispatch envelope, separate from the bounded task payload:
+
+```text
+WORKFLOW_METADATA:
+  LEDGER_RECORD: <path and stable dispatch record id>
+  AGENT_TYPE: EXECUTION
+  RUN_CONTROL: AUTO | STEP
+  ENTRY_SELECTION_INDEX: 1 | 2
+  TASK_ID: <stable task id>
+TASK_PAYLOAD:
+  TASK: <bounded assignment matching TASK_ID>
+```
+
+The ledger record is the authority; the dispatch envelope is transport, not workflow memory. Immediately before dispatch, validate that every field exists, uses the allowed value or identifier form above, agrees with the current run record, and identifies the same task as `TASK_PAYLOAD`. `AGENT_TYPE: EXECUTION` establishes subtask status and suppresses entry; `ENTRY_SELECTION_INDEX` proves that entry was resolved, so do not add parallel boolean flags for either fact. Missing, contradictory, or stale metadata blocks dispatch rather than being inferred from conversation history.
+
+Before any task action, the execution Agent reads the referenced ledger record, compares it with `WORKFLOW_METADATA`, and records `HANDOFF_PROTOCOL_STATUS: VALID` in its initial `state.md`. A valid block authorizes only `TASK_PAYLOAD`, not a wider phase or permission. If the block is missing or inconsistent, the Agent performs no business work and no entry prompt: it writes the available terminal evidence with `HANDOFF_PROTOCOL_STATUS: INVALID`, `RESULT_CLASSIFICATION: HANDOFF_PROTOCOL_FAILURE`, and `STATUS: FAILED`, then ends its turn.
+
+The coordinator also classifies a result as `HANDOFF_PROTOCOL_FAILURE`, rather than a business execution failure, when an execution Agent returns the entry menu, asks for a new run-mode choice, or performs no assigned work solely because it treated the subtask as a fresh workflow. Reclaim the worker under [Terminal handling](#terminal-handling) before considering recovery.
+
+For a read-only investigation assignment, the coordinator may recover automatically once: allocate a new dispatch task ID and state path, retain the failed record, create a new ledger record linked by `RECOVERS_DISPATCH`, copy the same bounded assignment, route, and authority, and supply a freshly validated complete metadata block. This recovery does not consume a repair implementation attempt and, when scope and route are unchanged, does not reopen an already resolved stage confirmation. A repeated handoff protocol failure, any write-capable task, or any recovery that changes scope, route, authority, or risk must stop automatic redispatch and return to the applicable coordination or confirmation gate.
+
 Terminal handoff is one-way. When the bounded task finishes or cannot continue without coordinator or user action, the subagent must write `result.md`, enter `DONE`, `BLOCKED`, `NEED_INPUT`, `FAILED`, or `CANCELLED`, return the result to the coordinator, and immediately end its turn. It must not call a wait primitive, remain available for more work, poll, retry, or spin after a terminal handoff. `WAITING` is only for a self-resolving pre-completion condition with a concrete next observable event.
 
 Keep task state and worker runtime state separate:
@@ -60,10 +85,11 @@ Write the complete snapshot to a sibling temporary file, validate required field
 Every new `state.md` contains at least:
 
 ```text
-STATE_VERSION: 4
+STATE_VERSION: 5
 TASK: <stable task id and short title>
 AGENT: <canonical disclosure label>
 MODEL: <exact model and effort>
+HANDOFF_PROTOCOL_STATUS: VALID | INVALID
 STATUS: PENDING | RUNNING | WAITING | BLOCKED | NEED_INPUT | DONE | FAILED | CANCELLED
 PHASE: <current phase>
 GOAL: <bounded outcome>
@@ -85,7 +111,7 @@ NEEDS_USER: YES | NO
 
 Use ASCII plan markers so simple tooling can parse them. Exactly one step is current while work is active (`PENDING`, `RUNNING`, or `WAITING`); terminal handoff states (`BLOCKED`, `NEED_INPUT`, `DONE`, `FAILED`, or `CANCELLED`) have no current step. `CURRENT_PROGRESS` summarizes conclusions rather than duplicating the plan, and `NEXT_STEP` identifies the immediate action rather than another full plan.
 
-At initialization, set `CHECKPOINT_ID: 0`, persist the initial plan, and set `last_meaningful_progress` from the environment-derived start time. State explicitly that no meaningful progress is confirmed yet; initialization and plan creation are not meaningful progress.
+At initialization, validate the run-control handoff first, set `CHECKPOINT_ID: 0`, persist the initial plan, and set `last_meaningful_progress` from the environment-derived start time. State explicitly that no meaningful progress is confirmed yet; handoff validation, initialization, and plan creation are not meaningful progress. A handoff protocol failure instead writes a terminal snapshot without a current plan step.
 
 Add state-specific detail when applicable:
 
@@ -95,7 +121,7 @@ Add state-specific detail when applicable:
 - long operation: operation, reason, and defensible estimate;
 - `FAILED` or `CANCELLED`: cause, retained evidence, state at termination, and follow-up recommendation.
 
-For compatibility, coordinators may read `STATE_VERSION: 1 | 2 | 3`, including any legacy `*_summary` fields they contain. In version 3 and earlier, do not assume `BLOCKED` or `NEED_INPUT` is terminal without runtime evidence. New writes use version 4 and `last_meaningful_progress_reason`; do not invent missing historical values during migration.
+For compatibility, coordinators may read `STATE_VERSION: 1 | 2 | 3 | 4`, including legacy `*_summary` fields and version 4 snapshots without `HANDOFF_PROTOCOL_STATUS`. In version 3 and earlier, do not assume `BLOCKED` or `NEED_INPUT` is terminal without runtime evidence. New writes use version 5; do not invent missing historical values during migration.
 
 ## Meaningful progress and observation
 
