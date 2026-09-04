@@ -10,7 +10,7 @@ Record `EARLY_EXIT_REASON` and `EARLY_EXIT_PHASE` in the terminal artifact. Use 
 
 When a choice affects workflow state, record both its semantic value and the displayed option number after normalizing the user's input. The user may have replied with text; the stored number represents the numbered menu that was shown, not an input-format requirement.
 
-For hierarchical repair menus, `REPAIR_SELECTION_INDEX` records the primary prompt. Selecting **更多操作** leaves `REPAIR_SELECTION: PENDING` and sets `REPAIR_SECONDARY_INDEX: PENDING` until the secondary prompt is resolved. Use `CLIENT_OTHER` when the client-owned free-form option supplies a custom decision without a skill-controlled number; use `NOT_NEEDED` when the primary prompt directly resolves the repair set. The semantic `REPAIR_SELECTION` and `SELECTED_ISSUES` remain authoritative.
+`REPAIR_SELECTION_INDEX` records the displayed flat-menu choice after runtime-equivalent options are merged and the menu is renumbered. A modification or custom choice leaves `REPAIR_SELECTION: PENDING` until its details are resolved. The semantic `REPAIR_SELECTION` and `SELECTED_ISSUES` remain authoritative; the index must never be reconstructed from an unmerged template.
 
 Maintain one proposal/dispatch ledger. Give every proposal or dispatch a stable record ID and update that record in place. Include default-route dispatches and upgrades that were defaulted, customized, cancelled, or never dispatched.
 
@@ -162,8 +162,7 @@ CONFIDENCE: HIGH | MEDIUM | LOW | MIXED
 REPAIR_APPROVED: YES | PARTIAL | NO
 
 REPAIR_SELECTION: PENDING | RECOMMENDED | ALL | CUSTOM | NONE
-REPAIR_SELECTION_INDEX: PENDING | 1 | 2 | 3 | CLIENT_OTHER
-REPAIR_SECONDARY_INDEX: NOT_NEEDED | PENDING | 1 | 2 | 3 | CLIENT_OTHER
+REPAIR_SELECTION_INDEX: PENDING | <displayed positive integer>
 SELECTED_ISSUES: PENDING | ISSUE-001,ISSUE-002 | NONE
 
 AGENT_UPGRADES: NONE | PENDING | APPROVED | PREAUTHORIZED | DEFAULTED | CUSTOM | MIXED | CANCELLED
