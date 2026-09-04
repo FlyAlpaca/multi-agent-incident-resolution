@@ -35,6 +35,10 @@ If the user already says “自动全流程”, “单步确认”, “Codex 原
 
 Do not persist the selection globally. Keep it only for the current incident. If the incident materially changes, ask again.
 
+After the user selects this Skill's automatic or step mode, the entry coordinator applies [Change Classifier](change-classifier.md) before the first source-changing route phase. Classification is deterministic bookkeeping, not a phase, Agent switch, or additional menu. `diagnose` and `review` bypass it as read-only scopes.
+
+An evidence-based upgrade that stays within the user's existing scope and authority is not a new product decision: automatic mode continues after recording the route, while single-step mode shows the next applicable phase checkpoint. If the upgrade would widen files, behavior, authority, or external impact, stop at the existing decision/high-impact gate instead of treating classification as permission.
+
 ## Automatic full-flow mode
 
 Proceed through the selected workflow scope without routine stage prompts. End early when an applicable early-exit rule in [workflow.md](workflow.md#early-exit-rules) is satisfied; an early-exit result is terminal, not a new confirmation prompt, and skipped phases must not start. Still pause or stop for:
@@ -49,7 +53,7 @@ Automatic mode is not blanket authorization for deployment, destructive operatio
 
 When diagnosis finds repair choices, automatic mode pauses and presents the numbered repair menu defined in [multi-issue.md](multi-issue.md) unless the user preselected a repair set in the activating request. Repair selection is a product/scope decision, not a routine stage prompt.
 
-Choosing `PLANNING_MODE`, `POOLED` implementation, dispatching an implementer wave from the approved `tasks.yaml`, or running the conditional integration phase are routing decisions inside the confirmed scope. They still require routing disclosure and any Agent-upgrade confirmation, but they do not need a further stage confirmation in automatic mode while the decomposition stays inside the frozen `SELECTED_ISSUES` and the authorized file boundary.
+Choosing `PLANNING_MODE`, `POOLED` implementation, dispatching an approved implementer wave, or running its required integration phase are routing decisions inside the confirmed scope. They still require routing disclosure and any Agent-upgrade confirmation, but no extra stage confirmation in automatic mode while scope and authority remain unchanged. Tiny's coordinator-owned quick verification is not an Agent route.
 
 Both run-control modes pause before an Agent upgrade above the role defaults defined in `SKILL.md`, unless the user has already explicitly authorized that exact role and configuration for this incident. A general preference for quality, escalation, automatic execution, or a model family is not exact authorization.
 
@@ -59,7 +63,7 @@ Full or early completion in either mode includes [run artifact cleanup](workflow
 
 This contract applies equally to both run-control modes. Automatic execution removes routine phase confirmations, not routing transparency.
 
-As soon as a route is selected, create and retain one canonical label with the dispatch record:
+As soon as an Agent route is selected, create and retain one canonical label with the dispatch record. The Change Classifier itself has no label or dispatch record:
 
 `<角色或稳定标识>（模型：<精确模型>；推理强度：<精确强度>）`
 
@@ -109,14 +113,14 @@ Immediately before the single numbered choice set, describe the next executor in
 
 Do not show the confirmation choices or start the phase until every planned subagent has a canonical label, exact model, reasoning effort, and bounded task. If execution changes between the current Agent and a subagent, or any displayed subagent, model, effort, or task changes before execution, create or revise the affected canonical label, present a revised checkpoint, and wait again. A model above the role default still requires exact authorization under the Agent-upgrade contract; routing disclosure alone never authorizes it.
 
-Before planning, include the issue table and use the single-step combined repair menu from [multi-issue.md](multi-issue.md) when repair selection is pending. That menu replaces the generic stage-action menu and confirms the selected issue IDs plus entry into stage 3 only; single-step mode still requires a later implementation checkpoint. Before implementation, present the completed task decomposition from `tasks.yaml`—task ID, owner Agent label, exclusive file scope, dependency wave, acceptance conditions, `integration_required`, and `integration_scope`—plus the ordered implementation sequence, affected contracts or data, rollback approach, per-issue checks, and combined regression checks. Expand these details for structural, multi-issue, dependency-ordered, contract-changing, migration, concurrency, lifecycle, state-machine, pooled, or otherwise high-blast-radius repairs.
+Before Normal or Complex planning, include the issue table and use the single-step combined repair menu from [multi-issue.md](multi-issue.md) when repair selection is pending. That menu replaces the generic stage-action menu and confirms the selected issue IDs plus entry into stage 3 only; single-step mode still requires a later implementation checkpoint. Tiny has one already-authorized bounded change, so it does not open the multi-issue repair menu. Before any implementation, present the completed task decomposition from `tasks.yaml`—for Tiny, its materialized task; otherwise task ID, owner Agent label, exclusive file scope, dependency wave, acceptance conditions, `integration_required`, and `integration_scope`—plus the ordered implementation sequence, affected contracts or data, rollback approach, per-issue checks, and combined regression checks. Expand these details for structural, multi-issue, dependency-ordered, contract-changing, migration, concurrency, lifecycle, state-machine, pooled, or otherwise high-blast-radius repairs.
 
-Planning is stage 3, and the implementation checkpoint follows only once `plan.md` and `tasks.yaml` exist. Gate it by mode:
+Planning is stage 3 for Normal and Complex, and the implementation checkpoint follows only once their `plan.md` and `tasks.yaml` exist. Tiny's implementation checkpoint follows classifier materialization of `tasks.yaml` and does not pretend that planning ran. Gate planning by mode:
 
 - `PLANNING_MODE: INLINE` — reuse the diagnostician and its canonical label, but do not bypass a repair-selection or single-step gate. In single-step mode, confirm stage 3 before resuming it; when an automatic run already has a frozen repair set, diagnosis may continue directly into planning. A gate-separated resume gets its own bounded dispatch record and task-state path without creating a distinct planner identity.
-- `PLANNING_MODE: DEDICATED` — in single-step mode, planning gets its own checkpoint with its own canonical label before the implementation checkpoint.
+- `PLANNING_MODE: DEDICATED` — in Complex and other dedicated-planning cases, planning gets its own checkpoint with its own canonical label before the implementation checkpoint.
 
-Do not dispatch an implementer before `plan.md` and `tasks.yaml` exist, do not duplicate the planning and implementation checkpoints, and do not let the task decomposition silently change the frozen `SELECTED_ISSUES`. When a run switches from `INLINE` to `DEDICATED` mid-stage, disclose the new planner label and present the revised checkpoint before dispatching it.
+For Normal and Complex, do not dispatch an implementer before `plan.md` and `tasks.yaml` exist, do not duplicate the planning and implementation checkpoints, and do not let the task decomposition silently change the frozen `SELECTED_ISSUES`. Tiny uses its documented materialized-task exception. When a run switches from `INLINE` to `DEDICATED` mid-stage, disclose the new planner label and present the revised checkpoint before dispatching it.
 
 If the implementation proposes an upgrade that lacks exact prior authorization while repair selection is pending, resolve the repair set first using its numbered menu as a scope decision only. Then show a revised implementation checkpoint with the Agent-upgrade menu; options `1` or `2` authorize the displayed implementation transition. Do not write source between those prompts. If the repair set was already selected and no unapproved upgrade is proposed, use the generic stage-action menu below.
 
@@ -133,7 +137,7 @@ If any non-implementation phase proposes an upgrade that lacks exact prior autho
 
 Do not ask separately for each member of a safe parallel, read-only Agent batch. Present the batch's roles, purpose, and concurrency once, then use one packaged confirmation.
 
-Write-capable Agents may be packaged only as one implementer wave: every member must come from the approved `tasks.yaml`, own a disjoint `file_scope`, and carry its own canonical label and bounded task; a later wave needs its own confirmation because earlier results may change its scope. Never package two Agents that can write the same file. The integrator is always dispatched alone after all implementers stop, and may write only the displayed `integration_scope` while integration runs.
+Write-capable Agents may be packaged only as one implementer wave: every member must come from the approved `tasks.yaml`, own a disjoint `file_scope`, and carry its own canonical label and bounded task; a later wave needs its own confirmation because earlier results may change its scope. Never package two Agents that can write the same file. For `POOLED`, dispatch the Integrator alone after all implementers stop; it may write only the displayed `integration_scope`.
 
 Within a confirmed phase, routine read-only tool calls and the stated in-scope commands do not require repeated conversational confirmation. Ask again if the phase's scope, permissions, affected files, model routing, or risk materially changes.
 
