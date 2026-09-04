@@ -16,8 +16,8 @@
   },
   {
     "id": 4,
-    "prompt": "自动全流程重构订单、账务和网关三个模块，根因和推荐修复集合已经确认；请拆分后并行实施并完成整合。",
-    "expected": "从 repair 的阶段 3 开始；使用 DEDICATED 规划与 POOLED 实施，tasks.yaml 明确互斥 file_scope、integration_scope 和 INTEGRATION_REQUIRED: YES；所有实施 worker 退出后仍执行集成，再验证和独立复核。"
+    "prompt": "自动全流程重构订单、账务和网关三个模块，根因和推荐修复集合已经确认；其中订单幂等、账务补偿和网关重试分别有独立目标、验收、执行路径和风险边界，请并行实施并完成整合。",
+    "expected": "从 repair 的阶段 3 开始；Planner 先确认三个独立修复闭环，检查低耦合、范围互斥、无共享核心设计决策、独立验证和失败隔离，记录拆分理由、execution_mode: parallel、execution_reason、task_dependencies 及执行前自检，再使用 DEDICATED 规划与不超过三个 Agent 的 POOLED 实施；所有实施 worker 退出后仍执行集成，再验证和独立复核。"
   },
   {
     "id": 5,
@@ -38,5 +38,25 @@
     "id": 8,
     "prompt": "第一轮修改完成，但验证中的原始复现仍然失败。继续修，不要受上一轮实现思路影响。",
     "expected": "关闭当前 REPAIR_ROUND 为 VERIFICATION_FAILED，保留验证命令、错误、分类和当前工作树，递增轮次并为 TARGET_PHASE: DIAGNOSIS 重建 active-context.md；使用新鲜有界上下文重新诊断和规划，不直接把失败结果发回 writer，且累计 attempt 不清零。"
+  },
+  {
+    "id": 9,
+    "prompt": "这次修复要同时修改控制器、服务和测试文件。请按文件拆成三个 task，并尽量多派 Agent。",
+    "expected": "Planner 不因文件、模块或函数不同而拆分；先识别独立修复闭环，相关控制器、服务和测试修改默认合并为一个 task、一个 implementation Agent。完成计划前自检可合并项、task 粒度和 Agent 数量；只有四项独立性条件全部成立才拆分，并记录为什么拆分、为什么不能合并及并行收益。"
+  },
+  {
+    "id": 10,
+    "prompt": "规划得到四个候选 implementation task，准备各派一个 Agent 并行执行。",
+    "expected": "默认实施 Agent 上限为三个；Planner 先检查候选 task 是否都是独立修复闭环且不可合并。若不能同时说明无法合并原因、四路并行必要性和具体并行收益，就合并候选工作并把 Agent 数降到三个以内。"
+  },
+  {
+    "id": 11,
+    "prompt": "有三个 implementation task：先调整核心接口，再修改两个调用模块。文件范围互不重叠，请直接并行。",
+    "expected": "不能仅凭 file_scope 互斥并行。核心接口是两个调用任务的 task_dependencies，且共享接口设计；Planner 选择 mixed：基础接口任务单独在前置 wave 串行完成并稳定契约，两个低耦合、可独立验证且失败隔离的调用任务通过全部并行条件后进入后续并行 wave，最后统一集成。"
+  },
+  {
+    "id": 12,
+    "prompt": "四个 task 没有显式依赖，修改范围也不重叠，按默认策略执行。",
+    "expected": "多个 task 不自动产生多个并行 Agent。Planner 默认从 sequential 评估，继续检查任务耦合、核心设计决策、独立验证和失败隔离；只有全部五项并行条件成立且并行收益明确时才选择 parallel，否则按单任务 wave 串行，并在 tasks.yaml 记录 execution_mode、execution_reason、task_dependencies 和 wave。"
   }
 ]

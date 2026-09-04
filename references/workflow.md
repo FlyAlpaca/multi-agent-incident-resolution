@@ -37,7 +37,7 @@ The current run directory is disposable only under [Run artifact cleanup](#run-a
 
 Before delegating, record the incident input and workspace root. Every phase must read the same incident input and applicable repository instructions. Later phases read prior artifact files rather than receiving a rewritten narrative.
 
-Apply the selected run-control mode from [confirmation.md](confirmation.md). In **单步确认** mode, stop before stages 1-7 and before every Agent switch or parallel Agent batch; present the required checkpoint and wait. A phase terminal marker does not authorize the next phase. Planning has its own stage checkpoint before the implementation checkpoint even when `INLINE` reuses the diagnostician; `DEDICATED` planning additionally introduces a new Agent route. Confirm one implementer wave as one packaged batch only when its tasks have disjoint file scopes; confirm integration as its own checkpoint.
+Apply the selected run-control mode from [confirmation.md](confirmation.md). In **单步确认** mode, stop before stages 1-7 and before every Agent switch or parallel Agent batch; present the required checkpoint and wait. A phase terminal marker does not authorize the next phase. Planning has its own stage checkpoint before the implementation checkpoint even when `INLINE` reuses the diagnostician; `DEDICATED` planning additionally introduces a new Agent route. Confirm one implementer wave as one packaged batch only when `execution_mode` permits concurrency and every task in that wave passes the parallel-safety criteria; confirm integration as its own checkpoint.
 
 ## Subagent state, liveness and result visibility
 
@@ -139,25 +139,43 @@ The planner decides how the approved repair is executed, never what is wrong. It
 
 Produce `plan.md` with:
 
-- the requirement being satisfied, decomposed into verifiable units tied to the selected issue IDs;
+- the requirement being satisfied, organized into the smallest set of complete repair closures tied to the selected issue IDs;
 - the refactor or repair approach, and why it wins over the rejected alternatives;
-- the task decomposition and why these boundaries, including what stays out of scope;
-- the dependency graph between tasks and the resulting execution waves;
-- the parallel and serial strategy: which tasks run concurrently because their file scopes and contracts do not collide, and which must stay serial;
+- the task decomposition and why these boundaries, including what stays out of scope; when there is more than one task, record for every split why it is needed, why the work cannot remain merged, and what parallel benefit exists or why execution must remain serial;
+- the task dependencies, execution order, and resulting waves;
+- `execution_mode: sequential | parallel | mixed` and `execution_reason`, explaining why tasks can or cannot overlap and what measurable benefit any concurrency provides;
 - the integration strategy: expected seams, shared contracts, call-site updates, and known conflict points;
 - per-task and whole-run acceptance criteria, including the commands or assertions that prove them;
 - risk, blast radius, rollback approach, and the verification strategy for stage 6;
 - `PLAN_STATUS: COMPLETE | BLOCKED`.
 
-Produce `tasks.yaml` using [the task-contract schema](artifacts.md#task-contract). It contains every subtask with its owner, exclusive file scope, dependencies, wave, and acceptance conditions, plus `integration_required` and the integrator's allowed `integration_scope`. A task is dispatchable only when its owner, scope, and acceptance conditions are explicit; integration is writable only when its scope is explicit.
+Produce `tasks.yaml` using [the task-contract schema](artifacts.md#task-contract). It records `execution_mode`, `execution_reason`, every subtask's `task_dependencies` and wave, owner, exclusive file scope, and acceptance conditions, plus `integration_required` and the integrator's allowed `integration_scope`. A task is dispatchable only when its owner, scope, dependencies, wave, and acceptance conditions are explicit; integration is writable only when its scope is explicit.
 
-In `INLINE` mode the dependency graph, waves, and parallel strategy collapse to one line each: one task, one wave, one implementer. Record them in that form instead of omitting them, so the task contract stays uniform across both modes.
+In `INLINE` mode the dependency graph, waves, and execution strategy collapse to one line each: one task, one wave, one implementer, and `execution_mode: sequential`. Record them in that form instead of omitting them, so the task contract stays uniform across both modes.
 
-Size the decomposition to the repair type:
+### Task and pool shape
 
-- `MINIMAL` normally yields one task; keep `IMPLEMENTATION_MODE: SINGLE` unless two clearly separable, file-disjoint units exist.
-- `STRUCTURAL` or `MIXED` normally yields several tasks with explicit waves; use `IMPLEMENTATION_MODE: POOLED` only when at least two tasks have disjoint file scopes.
+Derive the implementation shape in this order: independent repair closures, then tasks, then the minimum useful number of implementation Agents. A repair closure includes all related code, tests, documentation, wiring, and validation work needed to restore one invariant and prove it. Merge related changes by default, including changes across different files, modules, or functions; those locations are scope metadata, not task boundaries.
+
+Split a repair closure into separate tasks only when every resulting task has all four of the following: an independent problem goal, independent acceptance criteria, an independent execution path, and an independent risk boundary. File-scope disjointness is required for concurrent writers but is neither a reason to split nor sufficient evidence that parallel execution is safe. If any condition is missing, keep the work in one task.
+
+Size the resulting decomposition and implementation pool as follows:
+
+- `MINIMAL` normally yields one repair closure, one task, and one implementation Agent.
+- `STRUCTURAL` or `MIXED` may yield several tasks with explicit waves, but its type, size, or module count does not by itself justify splitting. Use `IMPLEMENTATION_MODE: POOLED` only when at least two valid repair-closure tasks remain after merging related work; `execution_mode` separately determines whether those implementers run sequentially, concurrently, or in mixed waves.
 - Tasks that must touch the same file belong to one task or leave that shared seam for the later integrator, never to two implementers. The later `integration_scope` may include task-owned files because every implementer has stopped before integration.
+
+### Execution mode
+
+After task boundaries are stable, analyze dependencies and choose the execution mode before creating implementation Agents. Default to `sequential`; concurrency is an optimization that requires affirmative evidence, not the consequence of having several tasks or available runtime slots.
+
+- `sequential`: one task per wave. Use it whenever tasks depend on one another, modify the same core module, share an architectural decision or unified refactor direction, introduce or consume an interface change, or otherwise require an earlier result to stabilize the next task.
+- `parallel`: one or more concurrent waves, which may be batched to respect the Agent budget. Use it only when every pair of tasks in each wave is low-coupling, has non-conflicting write scope, shares no unresolved core design decision, can be validated independently, and can fail without blocking or invalidating the other tasks. All five conditions are mandatory.
+- `mixed`: ordered waves containing both forms—for example, a serial foundation or interface change, followed by a concurrent wave of independent consumers, then planned integration. Each concurrent wave must satisfy all parallel conditions; dependencies and shared decisions remain in earlier single-task waves.
+
+`execution_reason` names the decisive dependencies, coupling, shared decisions, interface boundaries, failure propagation, and expected parallel benefit. The planner must not delegate execution-mode judgment to implementers or the integrator, and a requested parallel run is still subject to these constraints.
+
+Before setting `PLAN_STATUS: COMPLETE`, the planner performs and records an execution-readiness self-check: whether any tasks can still be merged, whether each task is a reasonably sized complete repair closure, whether the dependency graph and waves match the selected execution mode, whether every concurrent wave passes all five parallel conditions, and whether the implementation Agent count is the minimum useful count. Default to one implementation Agent and a maximum of three. A plan above three must record why the tasks cannot be merged, why that degree of parallelism is necessary, and the concrete parallel benefit; without all three, merge the candidate work until the pool is within budget.
 
 Every task in `tasks.yaml` must carry an acceptance condition that stage 6 can execute or check, and the union of task scopes plus `integration_scope` must cover the approved repair while staying inside the frozen `SELECTED_ISSUES` and the authorized file boundary.
 
@@ -173,12 +191,12 @@ After `PLAN_STATUS: COMPLETE`, perform the mandatory planning-to-implementation 
 
 Proceed only with `DIAGNOSIS_STATUS: COMPLETE`, `PLAN_STATUS: COMPLETE`, a valid per-issue approval, and an explicit repair-set choice under [multi-issue.md](multi-issue.md). Freeze `SELECTED_ISSUES` before writing. Newly discovered issues return to triage and selection rather than silently expanding implementation.
 
-Dispatch one implementer per task in `tasks.yaml`, wave by wave. Never dispatch a task whose dependencies are not terminal-complete, and never let two implementers write the same file concurrently. `IMPLEMENTATION_MODE: SINGLE` dispatches exactly one implementer owning one task; `POOLED` dispatches several, each with a stable identifier such as `实施 Agent A`.
+Create and dispatch implementation Agents only as authorized by the validated `execution_mode`, one implementer per task in `tasks.yaml`. `sequential` dispatches one task at a time in wave order; `parallel` dispatches each eligible wave as one concurrent batch; `mixed` alternates single-task and concurrent waves exactly as planned. Start no task before every `task_dependencies` entry is terminal-complete, and never let two implementers write the same file concurrently. `IMPLEMENTATION_MODE: SINGLE` dispatches exactly one implementer owning one complete repair closure; `POOLED` dispatches several, each with a stable identifier such as `实施 Agent A`. Do not pre-create later-wave Agents or expand the pool merely because more tasks, files, or runtime slots are available. If current state invalidates the planned mode or a parallel-safety condition, stop before the affected wave and return to planning; implementers and the integrator do not reschedule the run.
 
 Keep each implementer's context small. Give it only:
 
 - a short incident summary and the frozen issue IDs its task covers;
-- its own `tasks.yaml` entry: task ID, exclusive file scope, dependencies, and acceptance conditions;
+- its own `tasks.yaml` entry: task ID, exclusive file scope, `task_dependencies`, wave, and acceptance conditions;
 - the relevant excerpts of `evidence.md`, `diagnosis.md`, and `plan.md` for that task, or their paths when an excerpt would be lossy;
 - repository instructions, the validated `active-context.md`, the current working-tree snapshot, the run directory, repair round, and attempt number;
 - its assigned `tasks/<task-id>/state.md` path, terminal handoff states, and the obligation to end its turn immediately after handoff.
@@ -200,7 +218,7 @@ Every implementer must:
 
 Each implementer produces `implementation/tasks/<TASK-ID>.md` with its task ID, covered issue IDs, attempt number, files changed, behavioral differences, deviations from the task contract, tests added, unresolved seams handed to integration, and `TASK_IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED | FAILED | CANCELLED`.
 
-The coordinator aggregates the per-task records into `implementation.md` containing the selected issue IDs, `IMPLEMENTATION_MODE`, `IMPLEMENTER_COUNT`, outcome per task ID, per-issue or shared-direction attempt numbers, files changed, behavioral differences, deviations from diagnosis or plan, tests added, seams handed to integration, and `IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED`.
+The coordinator aggregates the per-task records into `implementation.md` containing the selected issue IDs, `IMPLEMENTATION_MODE`, `EXECUTION_MODE`, `IMPLEMENTER_COUNT`, executed waves, outcome per task ID, per-issue or shared-direction attempt numbers, files changed, behavioral differences, deviations from diagnosis or plan, tests added, seams handed to integration, and `IMPLEMENTATION_STATUS: COMPLETE | NO_CHANGE | PARTIAL | BLOCKED`.
 
 On the first failed direction for a task, issue, or shared root-cause group, return it with the findings before a second attempt: to planning when the decomposition, task boundary, or acceptance conditions are at fault, and to diagnosis when the repair direction itself is at fault. After the second failed direction, stop patching that unit and invoke expert escalation; do not start a third attempt. In a pool, an independent task may continue only when it does not depend on the stopped unit and doing so remains safe.
 
@@ -221,7 +239,7 @@ The integrator must:
 - prove the whole assembles by running the repository-prescribed build, type, or smoke checks;
 - record every deviation from `tasks.yaml` and every seam it resolved.
 
-The integrator must not redesign the approved repair, change acceptance criteria, implement unselected or deferred issues, or silently expand scope. When assembly reveals a wrong decomposition or a missing task boundary, it stops and returns the run to planning; when it reveals a wrong repair direction, it returns to diagnosis. Record the evidence either way.
+The integrator must not redesign the approved repair, choose or revise `execution_mode`, reorder implementation tasks, change acceptance criteria, implement unselected or deferred issues, or silently expand scope. When assembly reveals a wrong decomposition, schedule, or missing task boundary, it stops and returns the run to planning; when it reveals a wrong repair direction, it returns to diagnosis. Record the evidence either way.
 
 Produce `integration.md` with the tasks merged, conflicts and interface mismatches resolved, missing connections completed, checks run and their results, deviations from the task contract, unresolved items returned to planning, and `INTEGRATION_STATUS: SKIPPED | COMPLETE | PARTIAL | BLOCKED`.
 
@@ -313,7 +331,7 @@ Use these visible labels under the section. Write `无` only when absence is con
 - `发现的问题` — what was observed and the issue IDs or shared root-cause groups it represents; when multiple issues exist, separate fixed, failed/blocked, deferred, duplicate, and not-a-defect IDs;
 - `根因` — the confirmed causal chain and violated invariant;
 - `修改状态` — exactly `已修改`, `部分修改`, or `未修改`, referring only to changes made by this workflow run; list the principal files or components changed, or state why no modification was made without counting pre-existing user changes;
-- `处理方式` — diagnosis, planning, repair, and integration actions taken, repair type, planning mode, implementation mode with the number of implementers when pooled, and the meaningful behavioral difference; write `未实施修复` when applicable;
+- `处理方式` — diagnosis, planning, repair, and integration actions taken, repair type, planning mode, implementation mode with the number of implementers when pooled, execution mode and decisive scheduling reason, and the meaningful behavioral difference; write `未实施修复` when applicable;
 - `验证结果` — focused and regression checks, their outcomes, and the independent-review decision or limitation;
 - `子 Agent 结论` — when delegation occurred, identify every dispatched Agent and synthesize its terminal outcome, conclusion, material limitation, and effect on the workflow; in either run-control mode, use every Agent's retained canonical disclosure label and apply the same pre-send gate; for an implementer pool, group members by task ID instead of repeating near-identical outcomes; otherwise write `不适用`;
 - `遗留事项` — unresolved, deferred, blocked, partially verified issues, remaining risks, and the concrete next action;

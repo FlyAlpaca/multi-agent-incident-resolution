@@ -53,21 +53,22 @@ Default to `MINIMAL`. Use `STRUCTURAL` only when evidence shows that the current
 
 The current Agent remains coordinator and owns user gates, incident scope, artifacts, issue selection, task decomposition records, contradiction resolution, and workflow exit. Delegate only when the runtime permits it and an independent phase materially improves evidence, planning, parallel implementation, integration, verification, or review.
 
-The workflow uses seven roles; the implementer may expand into a pool of N parallel workers. Diagnosis and planning are separate stages, but they share one Agent for a minimal repair and split into two Agents only when the change is large enough to need it.
+The workflow uses seven roles; implementation may expand into a bounded pool scheduled sequentially, in parallel, or in mixed waves. Diagnosis and planning are separate stages, but they share one Agent for a minimal repair and split into two Agents only when the change is large enough to need it.
 
 | Role | Responsibility | Default route | Authority |
 |---|---|---|---|
 | Investigator | Reproduction, logs, runtime facts, source paths | `gpt-5.6-luna/max` | read-only |
 | Diagnostician | Root cause, violated invariant, impact scope, classification, blast radius, repair feasibility; also the inline plan for a `MINIMAL` repair | `gpt-5.6-sol/medium` | read-only |
-| Planner | Refactor approach, task decomposition, dependency waves, parallel/serial strategy, acceptance criteria, integration strategy; dispatched only in `DEDICATED` mode | `gpt-5.6-luna/max` | read-only |
-| Implementer (pool, `N >= 1`) | One assigned subtask from `tasks.yaml` inside its exclusive file scope | `gpt-5.6-luna/max` | sole writer of its own file scope |
-| Integrator | Merge subtask results, resolve conflicts and interface mismatches, complete cross-module wiring | `gpt-5.6-luna/max` | sole source writer during integration |
+| Planner | Repair-closure decomposition, dependency analysis, execution-mode and wave design, parallel-benefit assessment, acceptance criteria, integration strategy, and pre-execution task/pool self-check; dispatched only in `DEDICATED` mode | `gpt-5.6-luna/max` | read-only |
+| Implementer (pool, normally `1 <= N <= 3`) | One assigned repair-closure task from `tasks.yaml` inside its exclusive file scope | `gpt-5.6-luna/max` | sole writer of its own file scope |
+| Integrator | Apply the planned integration strategy, merge subtask results, resolve conflicts and interface mismatches, and complete cross-module wiring; it does not choose the implementation execution mode | `gpt-5.6-luna/max` | sole source writer during integration |
 | Verifier | Focused, regression, quality, and recurrence checks against the defined acceptance criteria | `gpt-5.6-luna/max` | read-only |
 | Independent reviewer | Adversarial review of requirements, final code, and verification results | `gpt-5.6-sol/medium` | read-only |
 
 - `read-only` means no project-source edits; all roles may write their assigned run artifacts, and verification may create repository-prescribed test/build outputs.
 - Use only roles that add value. Parallelize independent read-only work, and never let a reviewer fix its own findings.
 - Planning and implementation default to `INLINE` and `SINGLE`. Switch to `DEDICATED` or `POOLED` only under the criteria in [workflow.md](references/workflow.md#planning-mode); never cross a repair-selection or single-step gate merely because the same Agent retains context.
+- Derive tasks, waves, `execution_mode`, and the implementation-Agent budget from complete repair closures under [the planning contract](references/workflow.md#task-and-pool-shape). Multiple tasks, disjoint files, or available runtime slots do not by themselves authorize splitting or concurrent dispatch.
 - `tasks.yaml` is the write-authority contract. Implementers have disjoint `file_scope`; `POOLED` requires later integration within `integration_scope` after every implementer stops. Apply its schema and dependency rules from [artifacts.md](references/artifacts.md#task-contract).
 - Verifiers and reviewers report rather than repair. Route findings according to [workflow.md](references/workflow.md), and keep the independent reviewer separate from implementation and integration.
 - Keep each handoff task-specific. While a task is active the coordinator observes without prompting; terminal handoff and worker termination are separate gates governed solely by [subagent-state.md](references/subagent-state.md).
