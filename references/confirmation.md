@@ -11,11 +11,13 @@ For every prompt with two or more actions:
 3. distinguish menu numbers from stable issue IDs such as `ISSUE-003`;
 4. show exactly one actionable choice set for the pending decision.
 
-Deliver the complete decision through one surface. Use `request_user_input` when callable and the menu fits its two-or-three-choice limit; otherwise put one numbered list in the final response and end the turn. Never place a pending decision in `commentary`, duplicate it across surfaces, or follow it with an empty final response. Do not assume an IDE or try to change client mode.
+Deliver the complete decision through one surface: put one numbered list containing every available action in the final response and end the turn. Do not hide actions behind a fixed option limit or a secondary menu. Never place a pending decision in `commentary`, duplicate it across surfaces, or follow it with an empty final response. Do not assume an IDE or try to change client mode.
 
-When the client adds **Other**, do not add a duplicate custom option; this client-owned label is the only allowed unnumbered action. Text fallback menus may include the defined **其他 / 自定义** choice.
+Immediately before rendering a menu, normalize every candidate choice by its actual runtime effect: action type, target set, scope or constraints, and authorized next transition. Merge candidates whose normalized effects are identical even when their labels or source rules differ, then number the remaining choices consecutively. Use one clear combined label, retain all useful explanation, and do not imply a difference that no longer exists. Re-run this normalization whenever the underlying state changes; do not rely only on statically distinct menu templates.
 
-Accept a number, exact label, structured result, or unambiguous natural-language equivalent; multi-select prompts may also use issue IDs. Normalize the choice internally. If input is ambiguous, invalid, or contradictory, take no action and re-display the same menu through the same surface. Custom detail may arrive through **Other** or the following reply and need not be numeric.
+In particular, do not show both **修改/补充** and **其他 / 自定义** in one menu; use one combined action whose description covers the accepted input. Likewise, if two repair choices resolve to the same issue IDs, repair scope, constraints, and next transition, show one repair choice rather than separate labels.
+
+Accept a number, exact label, structured result, or unambiguous natural-language equivalent; multi-select prompts may also use issue IDs. Normalize the choice internally. If input is ambiguous, invalid, or contradictory, take no action and re-display the same menu through the same surface. Custom detail may arrive in the same reply or the following reply and need not be numeric.
 
 ## Entry confirmation
 
@@ -81,13 +83,9 @@ When an upgrade lacks exact prior authorization, show the role, default model/ef
 
 1. **确认升级** — authorize only the displayed Agent role and configuration and, in single-step mode, execute the displayed phase or batch;
 2. **保持默认** — use the role's default configuration and, in single-step mode, execute the displayed phase or batch if meaningful progress remains possible;
-3. **更多操作** — open the secondary action menu without dispatching the Agent.
-
-If option `3` is selected, present one secondary prompt. With interactive input, supply only options `1` and `2` and use the client-owned **Other** input for customization; with text fallback, also show option `3`:
-
-1. **暂停流程** — preserve the current run as resumable and do not emit the exit summary;
-2. **结束流程** — exit the incident and emit the required summary;
-3. **其他 / 自定义** — choose another model, effort, constraint, or routing approach; textual fallback only.
+3. **修改/补充/自定义** — choose another model, effort, constraint, or routing approach without dispatching the Agent.
+4. **暂停流程** — preserve the current run as resumable and do not emit the exit summary.
+5. **结束流程** — exit the incident and emit the required summary.
 
 Keep the same numbers if the answer is ambiguous. Record an exact prior authorization in the dispatch ledger and proceed without duplicating this prompt; a broader or different configuration still requires confirmation.
 
@@ -125,18 +123,13 @@ If the implementation proposes an upgrade that lacks exact prior authorization w
 For a checkpoint not governed by the combined repair menu or Agent-upgrade menu, offer these actions as its only numbered list and wait:
 
 1. **确认** — execute exactly the proposed phase or Agent batch;
-2. **修改/补充** — incorporate the user's changes, present the revised checkpoint, and wait again;
-3. **更多操作** — open the secondary action menu without starting the phase.
-
-If option `3` is selected, present one secondary prompt. With interactive input, supply only options `1` and `2` and use the client-owned **Other** input for custom instructions; with text fallback, also show option `3`:
-
-1. **暂停流程** — record the last completed phase and exact pending action, then preserve the run as resumable;
-2. **取消并结束** — stop the run, preserve all existing work and artifacts, and emit the exit summary;
-3. **其他 / 自定义** — provide another checkpoint action or constraint; textual fallback only.
+2. **修改/补充/自定义** — incorporate the user's changes or constraints, present the revised checkpoint, and wait again;
+3. **暂停流程** — record the last completed phase and exact pending action, then preserve the run as resumable.
+4. **取消并结束** — stop the run, preserve all existing work and artifacts, and emit the exit summary.
 
 Confirmation authorizes only the checkpoint just shown. It does not authorize later phases or materially broader actions.
 
-If any non-implementation phase proposes an upgrade that lacks exact prior authorization, use the Agent-upgrade menu instead of the generic stage-action menu. In single-step mode, upgrade options `1` and `2` also authorize the displayed phase or batch, preventing a duplicate confirmation. Selecting **更多操作** authorizes nothing until its secondary prompt is resolved.
+If any non-implementation phase proposes an upgrade that lacks exact prior authorization, use the Agent-upgrade menu instead of the generic stage-action menu. In single-step mode, upgrade options `1` and `2` also authorize the displayed phase or batch, preventing a duplicate confirmation. The modification, pause, and exit choices authorize no phase execution.
 
 Do not ask separately for each member of a safe parallel, read-only Agent batch. Present the batch's roles, purpose, and concurrency once, then use one packaged confirmation.
 

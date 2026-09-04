@@ -59,19 +59,24 @@ Exclude speculative, duplicate, unrelated, blocked, or unapproved issues. Exclud
 
 ## Require a repair-set choice
 
+Before rendering any repair menu, resolve the concrete issue-ID set, repair scope, constraints, and authorized next transition for every candidate repair action, then apply the runtime equivalence rule in [confirmation.md](confirmation.md#numbered-choice-contract). If **推荐修复** and **全部修复** resolve to the same eligible issue IDs under the same scope and constraints, merge them into one choice:
+
+- automatic mode: **修复所列问题（推荐）** — list the shared issue IDs and implement that set;
+- single-step mode: **修复所列问题并进入规划（推荐）** — list the shared issue IDs, freeze that set, and enter stage 3.
+
+When the shared set contains one issue, the compact labels **修复此问题（推荐）** and **修复此问题并进入规划（推荐）** are equivalent and preferred.
+
+After merging, renumber all remaining actions consecutively. Re-evaluate equivalence whenever diagnosis, eligibility, approval, scope, constraints, or issue membership changes. Compare semantic sets rather than display order or labels; never merge choices whose selected issues, authority, constraints, or next transition differ.
+
 In automatic full-flow mode, present these choices before stage 3:
 
 1. **推荐修复** — implement the explicitly listed recommended issue IDs and explain why this is the preferred risk/value balance.
 2. **全部修复** — implement every listed `REPAIRABLE` issue with `REPAIR_APPROVED: YES` that remains inside the current authorization boundary.
-3. **更多操作** — open the secondary repair-action menu without selecting a repair set.
+3. **修改/补充/自定义** — select or exclude issue IDs, change order or approach, add constraints, or request more diagnosis without selecting a repair set yet.
+4. **暂停流程** — preserve the current run as resumable and do not emit the exit summary.
+5. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary.
 
-If option `3` is selected, present one secondary prompt. With interactive input, supply only options `1` and `2` and use the client-owned **Other** input for customization; with text fallback, also show option `3`:
-
-1. **暂停流程** — preserve the current run as resumable and do not emit the exit summary;
-2. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary;
-3. **其他 / 自定义** — select or exclude issue IDs, change order or approach, add constraints, or request more diagnosis; textual fallback only.
-
-Always keep every skill-supplied repair-choice number visible. Accept either the number or unambiguous text from the user. A client-owned **Other** result at either layer is a custom repair choice. If customization requires selecting from several issue IDs, present the eligible issues in a following numbered choice set while retaining each stable `ISSUE-xxx` ID; use interactive input only when the full set fits its option limit, otherwise use one textual list. Accept numbers, issue IDs, or clear natural-language selections.
+Always keep every skill-supplied repair-choice number visible. Accept either the number or unambiguous text from the user. If customization requires selecting from several issue IDs, present every eligible issue in one following numbered choice set while retaining each stable `ISSUE-xxx` ID; do not truncate the list or split it merely because it has many entries. Accept numbers, issue IDs, or clear natural-language selections.
 
 Do not interpret **全部修复** as permission to fix hypotheses, blocked issues, unrelated findings, high-impact actions, or issues outside the incident scope. If “all” contains conflicting repairs, structural expansion, or excessive blast radius, identify the conflict and request a narrower decision instead of guessing.
 
@@ -81,9 +86,11 @@ In single-step mode, present exactly one combined repair-selection and planning-
 
 1. **推荐修复并进入规划** — freeze the listed recommended issue IDs, then run the displayed planning phase;
 2. **全部修复并进入规划** — freeze every listed eligible repairable issue, then run the displayed planning phase;
-3. **更多操作** — open the secondary repair-action menu without authorizing planning or implementation.
+3. **修改/补充/自定义** — select or exclude issue IDs, change constraints, or request more diagnosis without authorizing planning or implementation;
+4. **暂停流程** — preserve the current run as resumable and do not emit the exit summary;
+5. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary.
 
-Use the same secondary menu defined above. A custom result may select or exclude issue IDs, change constraints, or request more diagnosis; after its details are resolved, present a revised combined checkpoint.
+After a custom choice is resolved, present a revised combined checkpoint.
 
 “进入规划” authorizes stage 3 only. Planning reuses the diagnostician for a minimal repair and uses a separate planner Agent for structural or multi-issue work. After `plan.md` and `tasks.yaml` are complete, present the separate implementation checkpoint required by single-step mode.
 
@@ -92,16 +99,20 @@ This combined menu replaces the generic confirmation menu for that checkpoint. D
 When only one repairable issue exists in automatic mode, use this compact menu:
 
 1. **修复此问题（推荐）**
-2. **更多操作**
+2. **修改/补充/自定义** — change the repair approach or constraints, or request more diagnosis.
+3. **暂停流程** — preserve the current run as resumable and do not emit the exit summary.
+4. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary.
 
-Do not show two indistinguishable “recommended” and “all” choices.
+The single-issue menu is the one-eligible-issue instance of the same runtime equivalence rule; do not show separate “recommended” and “all” choices that select the same issue.
 
 For one repairable issue in single-step mode, use:
 
 1. **修复此问题并进入规划（推荐）**
-2. **更多操作**
+2. **修改/补充/自定义** — change the repair approach or constraints, or request more diagnosis without authorizing planning or implementation.
+3. **暂停流程** — preserve the current run as resumable and do not emit the exit summary.
+4. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary.
 
-For either single-issue menu, option `2` opens the same secondary menu defined above. This also replaces the generic stage-action menu. Apply the same separate Agent-upgrade prompt rule when an upgrade lacks exact prior authorization.
+Either single-issue menu replaces the generic stage-action menu. Apply the same separate Agent-upgrade prompt rule when an upgrade lacks exact prior authorization.
 
 ## Implement and verify the selected set
 
