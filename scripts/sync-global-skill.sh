@@ -3,8 +3,7 @@
 set -eu
 
 SCRIPT_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-AGENTS_HOME=${AGENTS_HOME:-${HOME}/.agents}
-GLOBAL_SKILLS_ROOT=${GLOBAL_SKILLS_ROOT:-${AGENTS_HOME}/skills}
+GLOBAL_SKILLS_ROOT=${GLOBAL_SKILLS_ROOT:-${HOME}/.codex/skills}
 SKILL_NAME=multi-agent-incident-resolution
 GLOBAL_SKILL_PATH=${GLOBAL_SKILLS_ROOT}/${SKILL_NAME}
 

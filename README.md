@@ -66,7 +66,7 @@ flowchart LR
 全局 Skill 使用符号链接：
 
 ```text
-${HOME}/.agents/skills/multi-agent-incident-resolution
+${HOME}/.codex/skills/multi-agent-incident-resolution
   -> <repository-root>/multi-agent-incident-resolution
 ```
 
@@ -76,7 +76,7 @@ ${HOME}/.agents/skills/multi-agent-incident-resolution
 sh scripts/sync-global-skill.sh
 ```
 
-脚本默认使用 `${HOME}/.agents/skills`，也可显式设置 `GLOBAL_SKILLS_ROOT`。不要维护独立全局副本或恢复旧的 `debug-repair` Skill。
+脚本默认使用 `${HOME}/.codex/skills`，也可显式设置 `GLOBAL_SKILLS_ROOT`。不要维护独立全局副本或恢复旧的 `debug-repair` Skill。
 
 ## 修改验证
 
