@@ -22,14 +22,15 @@ Before every dispatch, the coordinator must persist this workflow-metadata block
 WORKFLOW_METADATA:
   LEDGER_RECORD: <path and stable dispatch record id>
   AGENT_TYPE: EXECUTION
+  INVOCATION_SOURCE: EXPLICIT | IMPLICIT
   RUN_CONTROL: AUTO | STEP
-  ENTRY_SELECTION_INDEX: 1 | 2
+  ENTRY_SELECTION_INDEX: NOT_APPLICABLE | 1 | 2
   TASK_ID: <stable task id>
 TASK_PAYLOAD:
   TASK: <bounded assignment matching TASK_ID>
 ```
 
-The ledger record is the authority; the dispatch envelope is transport, not workflow memory. Immediately before dispatch, validate that every field exists, uses the allowed value or identifier form above, agrees with the current run record, and identifies the same task as `TASK_PAYLOAD`. `AGENT_TYPE: EXECUTION` establishes subtask status and suppresses entry; `ENTRY_SELECTION_INDEX` proves that entry was resolved, so do not add parallel boolean flags for either fact. Missing, contradictory, or stale metadata blocks dispatch rather than being inferred from conversation history.
+The ledger record is the authority; the dispatch envelope is transport, not workflow memory. Immediately before dispatch, validate that every field exists, uses the allowed value or identifier form above, agrees with the current run record, and identifies the same task as `TASK_PAYLOAD`. `AGENT_TYPE: EXECUTION` establishes subtask status and suppresses entry; `INVOCATION_SOURCE`, `ENTRY_SELECTION_INDEX`, and `RUN_CONTROL` preserve how entry was resolved. Do not add parallel boolean flags for these facts. Missing, contradictory, or stale metadata blocks dispatch rather than being inferred from conversation history.
 
 Before any task action, the execution Agent follows this strict bootstrap sequence:
 

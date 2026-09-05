@@ -4,7 +4,10 @@
 
 ```mermaid
 flowchart TB
-    U["用户请求 / 事件输入"] --> E{"入口确认\n1 自动全流程\n2 单步确认\n3 Codex 原生处理"}
+    U["用户请求 / 事件输入"] --> I{"调用来源"}
+    I -- "显式手动调用 $multi-agent-incident-resolution" --> A["直接 AUTO\nENTRY_SELECTION_INDEX: NOT_APPLICABLE"]
+    I -- "隐式触发" --> E{"强制入口确认\n1 自动全流程\n2 单步确认\n3 Codex 原生处理"}
+    A --> R
     E -- "3：停用本 Skill 工作流" --> N["Codex 默认工作流"]
     E -- "1 / 2" --> R{"范围路由\ndebug / diagnose / repair / review"}
     R --> CO
@@ -30,14 +33,15 @@ flowchart TB
 
     subgraph NM["NORMAL：合并诊断的安全短链"]
         ND["Diagnoser（诊断 Agent，只读）\n基础调查 + 日志/代码路径分析\n根因 + 修复方向\n统一 diagnosis.md"]
-        NC["同一诊断 Agent（仍只读）\n修复选择后内联简单修复契约\n→ 单任务 tasks.yaml"]
+        NFZ["修复集冻结\nAUTO：推荐集\nSTEP：用户选择"]
+        NC["同一诊断 Agent（仍只读）\n修复集冻结后内联简单修复契约\n→ 单任务 tasks.yaml"]
         NIMP["一个 Implementer（实施 Agent）\n唯一源码写入者"]
         NV["协调者基础验证"]
         VE{"需要独立 Verifier？\n范围扩大 / 检查失败或归因不清 / 风险升高"}
         NIV["Verifier（独立验证 Agent，只读）"]
         NS{"只读 diagnose 范围？"}
         ND --> NS
-        NS -- "否 / NORMAL debug 或 repair" --> NC --> NIMP --> NV --> VE
+        NS -- "否 / NORMAL debug 或 repair" --> NFZ --> NC --> NIMP --> NV --> VE
         NS -- "是" --> NOUT
         VE -- "否" --> NOUT["NORMAL 完成"]
         VE -- "是" --> NIV --> NOUT
@@ -47,7 +51,7 @@ flowchart TB
     subgraph CP["COMPLEX：完整多 Agent 路径"]
         CI["1 Investigator（调查 Agent，只读）\n→ evidence.md"]
         CD["2 Diagnoser（诊断 Agent，只读）\n→ diagnosis.md"]
-        SEL["修复选择门禁\n冻结 SELECTED_ISSUES"]
+        SEL["AUTO：推荐集自动冻结\nSTEP：修复选择门禁\n冻结 SELECTED_ISSUES"]
         CPL["3 Planner（规划 Agent，只读）\n独立上下文 → plan.md + tasks.yaml"]
         CIMP["4 Implementer（实施 Agent）池\nsequential / parallel / mixed"]
         IG{"POOLED?"}
@@ -70,10 +74,10 @@ flowchart TB
     CTX -. "COMPLEX 重新诊断" .-> CD
 
     subgraph K["协议、状态与运行工件层"]
-        CONF["confirmation.md\n入口 / 阶段 / 升级 / 修复选择门禁"]
+        CONF["confirmation.md\n入口 / 阶段 / 升级 / 菜单"]
         CLASSIFIER["change-classifier.md\n结构化指标 / 阈值 / 单向升级"]
         WF["workflow.md\n路线协议 / 早退 / 上下文重置 / 总结"]
-        MI["multi-issue.md\n问题归一化 / 修复集合选择 / 复发扫描"]
+        MI["multi-issue.md\n问题归一化 / 推荐集推导\nSTEP 修复集选择 / 复发扫描"]
         ART["artifacts.md\nRUN 元数据 / tasks.yaml / 终态标记"]
         STATE["subagent-state.md\nstate.md / result.md / 派发、观察、回收"]
         ROLES["docs/agent-roles.md\n角色职责 / 上下文白名单 / 交接边界"]
@@ -83,6 +87,7 @@ flowchart TB
     CONF --> CO
     CLASSIFIER --> CL
     WF --> CO
+    MI --> NFZ
     MI --> SEL
     ART --> RUN
     STATE --> RUN
@@ -116,9 +121,9 @@ flowchart TB
     classDef contract fill:#f4edff,stroke:#7956ad,color:#2e1c50;
     classDef exit fill:#ffeaea,stroke:#b84a4a,color:#4a1717;
 
-    class E,CO,SAFE,CTX,LIMIT,R,CL,ROUTE,NS,VE,IG,CUP,TUP control;
+    class I,A,E,CO,SAFE,CTX,LIMIT,R,CL,ROUTE,NS,VE,IG,CUP,TUP control;
     class TI,TIMP,TV tiny;
-    class ND,NC,NIMP,NV,NIV,NOUT normal;
+    class ND,NFZ,NC,NIMP,NV,NIV,NOUT normal;
     class CI,CD,SEL,CPL,CIMP,CINT,CV,CR,COUT complex;
     class CONF,CLASSIFIER,WF,MI,ART,STATE,ROLES,RUN contract;
     class N,SR,OUT,CTXCLEAN,CLEAN,KEEP exit;
@@ -132,7 +137,7 @@ flowchart TB
 | 变更分流与升级 | `references/change-classifier.md`、运行工件 `classification.md` |
 | 运行路线、早退、规划模式、验证升级与清理 | `references/workflow.md` |
 | 用户确认与 Agent 路由披露 | `references/confirmation.md` |
-| 多问题分诊与修复集合选择 | `references/multi-issue.md` |
+| 多问题分诊、推荐集推导与 STEP 修复集选择 | `references/multi-issue.md` |
 | 运行工件、`tasks.yaml` 与终态标记 | `references/artifacts.md` |
 | 子 Agent 状态、观察、终止与回收 | `references/subagent-state.md` |
 | 角色职责、上下文边界与交接 | `docs/agent-roles.md` |

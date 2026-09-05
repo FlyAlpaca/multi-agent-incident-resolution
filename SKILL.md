@@ -9,9 +9,9 @@ Resolve incidents without confusing symptoms with root causes or letting repairs
 
 ## Enter and route the workflow
 
-At the first activation for an incident by the entry Agent, use the entry menu in [references/confirmation.md](references/confirmation.md), unless the user already selected **自动全流程**, **单步确认**, or **Codex 原生处理** unambiguously. Before that choice, do not inspect, delegate, create artifacts, classify, or edit. Dispatched execution Agents follow [the run-control handoff](references/subagent-state.md#run-control-handoff) instead of entering the workflow again. Selecting **Codex 原生处理** disables this skill workflow and continues the original request under the default Codex workflow. The choice applies only to the current incident.
+The entry Agent resolves invocation source and run control through [references/confirmation.md](references/confirmation.md) before any workflow action. An explicit manual `$multi-agent-incident-resolution` invocation starts `AUTO` without a menu; an implicit activation must render the entry menu and wait, regardless of run-control wording in the activating request. Dispatched execution Agents follow [the run-control handoff](references/subagent-state.md#run-control-handoff) and never re-enter this decision. Selecting **Codex 原生处理** disables this workflow and continues the original request under the default Codex workflow. The choice applies only to the current incident.
 
-🔴 CHECKPOINT · 入口确认：仅入口 Agent 必须先让用户从三选一中明确运行方式，未确认前不得行动；已校验交接元数据的执行 Agent 不得重新触发入口。选择只对本事件有效。
+🔴 CHECKPOINT · 入口控制：入口 Agent 若收到显式手动 `$multi-agent-incident-resolution` 调用，直接采用 `AUTO`；否则必须先让用户从三选一中明确运行方式，未确认前不得行动。已校验交接元数据的执行 Agent 不得重新触发入口。选择只对本事件有效。
 
 After the entry choice, infer the narrowest authorized scope. For source-changing `debug` or `repair`, apply the non-Agent [Change Classifier](references/change-classifier.md) to a structured change envelope and persist `classification.md` before the selected route starts. Missing or unknown metrics never qualify for `TINY`; diagnose under `NORMAL` and reclassify before any writer. Classification is not a separate user checkpoint and grants no authority.
 
@@ -19,7 +19,7 @@ Use one of these scopes; the classifier applies only to the source-changing ones
 
 - `debug`: diagnose, implement, integrate when needed, verify, and review when its route requires; `COMPLEX` keeps investigation and planning as separate phases;
 - `diagnose`: investigate and diagnose in one read-only assignment without source edits or task planning;
-- `repair`: build the route-appropriate task contract, implement, integrate when needed, verify, and review when required, using a supplied current diagnosis and repair selection;
+- `repair`: build the route-appropriate task contract, implement, integrate when needed, verify, and review when required, using a supplied current diagnosis and frozen repair set (`AUTO` recommended freeze or `STEP` user selection);
 - `review`: review the current patch or branch without source edits.
 
 For a source-changing request, follow the route and monotonic-upgrade rules in [change-classifier.md](references/change-classifier.md); do not infer a route from the user's adjectives. Integration remains topology-dependent: `SINGLE` skips it and `POOLED` requires it.
@@ -56,7 +56,7 @@ The entry classifier's `TINY | NORMAL | COMPLEX` result is a process route, not 
 
 ## Coordinate agents
 
-The current Agent remains coordinator and owns user gates, incident scope, artifacts, issue selection, task contracts, contradiction resolution, `NORMAL` verification, and workflow exit. Delegate only when the runtime permits it and an independent phase materially improves diagnosis, planning, implementation, integration, verification, or review.
+The current Agent remains coordinator and owns user gates, incident scope, artifacts, issue triage, repair-set freeze (`AUTO` recommendation or `STEP` selection), task contracts, contradiction resolution, `NORMAL` verification, and workflow exit. Delegate only when the runtime permits it and an independent phase materially improves diagnosis, planning, implementation, integration, verification, or review.
 
 `NORMAL` uses a read-only Diagnoser, one Implementer as the sole source writer, and coordinator-owned basic verification. `COMPLEX` retains the full role chain. The route contract and upgrade criteria live in [change-classifier.md](references/change-classifier.md); do not reconstruct them from this summary.
 
@@ -72,7 +72,7 @@ The current Agent remains coordinator and owns user gates, incident scope, artif
 
 - `read-only` means no project-source edits; all roles may write their assigned run artifacts, and verification may create repository-prescribed test/build outputs.
 - Use only roles that add value. Parallelize independent read-only work, and never let a reviewer fix its own findings.
-- `NORMAL` records `TASK_CONTRACT_MODE: DIAGNOSER_INLINE`, emits one `tasks.yaml`, and records planning as skipped. A structural, multi-issue, multi-module, migration, deletion, parallel, or pooled need upgrades to `COMPLEX` before planning or writing. Never cross a repair-selection or single-step gate merely because the same Agent retains context.
+- `NORMAL` records `TASK_CONTRACT_MODE: DIAGNOSER_INLINE`, emits one `tasks.yaml`, and records planning as skipped. A structural, multi-issue, multi-module, migration, deletion, parallel, or pooled need upgrades to `COMPLEX` before planning or writing. Continue only after [the repair set is frozen](references/multi-issue.md#freeze-the-repair-set-by-run-control); retaining the same Agent never bypasses a `STEP` gate.
 - Derive `COMPLEX` tasks, waves, `execution_mode`, and the Implementer budget from complete repair closures under [the task-and-pool contract](references/workflow.md#task-and-pool-shape). Multiple tasks, disjoint files, or available slots do not by themselves authorize concurrent dispatch.
 - `tasks.yaml` is the write-authority contract. Its creator is the coordinator for `TINY`, the Diagnoser for `NORMAL`, and the Planner for `COMPLEX`. `POOLED` requires later integration within `integration_scope` after every Implementer stops. Apply [the artifact schema](references/artifacts.md#task-contract).
 - Verifiers and reviewers report rather than repair. `TINY` uses coordinator-owned quick verification; `NORMAL` uses coordinator-owned basic verification with conditional Verifier escalation; `COMPLEX` keeps delegated verification and independent review separate from writers.

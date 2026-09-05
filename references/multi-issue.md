@@ -1,4 +1,4 @@
-# Multi-issue discovery and repair selection
+# Multi-issue discovery and repair-set control
 
 Use this contract whenever investigation can reveal more than one defect, warning, regression, or root-cause candidate. The goal is complete incident triage, not an unbounded repository audit.
 
@@ -35,7 +35,7 @@ Before transitioning beyond investigation or diagnosis, apply the reason, scope,
 
 ## Build the repair recommendation
 
-Before any implementation, present a concise issue table in simplified Chinese with:
+Before any implementation, record or present a concise issue table in simplified Chinese with:
 
 - issue ID and short title;
 - severity and diagnosis confidence;
@@ -44,9 +44,9 @@ Before any implementation, present a concise issue table in simplified Chinese w
 - expected files or subsystem blast radius;
 - whether it is included in the recommended set and why.
 
-Do not present a repair menu when there are zero eligible `REPAIRABLE` issues. If the user chooses none, record `SELECTED_ISSUES: NONE` and apply the corresponding early-exit rule; do not create an implementation checkpoint.
+In `AUTO`, this table and its rationale are audit output; in `STEP`, they support the repair-selection menu. With zero eligible `REPAIRABLE` issues, use `NO_ACTIONABLE_REPAIR` without presenting a menu or creating an implementation checkpoint. If a `STEP` user declines an otherwise eligible set, record `SELECTED_ISSUES: NONE` and use `NO_REPAIR_SELECTED`.
 
-Sort by dependency first, then severity and confidence. Show counts for discovered, repairable, recommended, blocked, and deferred issues. If the ledger is long, keep the choice prompt compact but still show every eligible issue ID and link or point to the full ledger; never hide issues from **全部修复**. Make the exact difference between recommended and all eligible sets explicit.
+Sort by dependency first, then severity and confidence. Show counts for discovered, repairable, recommended, blocked, and deferred issues. If the ledger is long, keep a `STEP` prompt compact but show every eligible issue ID and point to the full ledger; never hide issues from **全部修复**. Only `STEP` presents recommended and all-eligible sets as choices.
 
 The **recommended repair set** should include:
 
@@ -57,32 +57,29 @@ The **recommended repair set** should include:
 
 Exclude speculative, duplicate, unrelated, blocked, or unapproved issues. Exclude a structural or contract-changing issue when it materially expands the request unless the user has approved that expansion.
 
-## Require a repair-set choice
+## Freeze the repair set by run control
 
-Before rendering any repair menu, resolve the concrete issue-ID set, repair scope, constraints, and authorized next transition for every candidate repair action, then apply the runtime equivalence rule in [confirmation.md](confirmation.md#numbered-choice-contract). If **推荐修复** and **全部修复** resolve to the same eligible issue IDs under the same scope and constraints, merge them into one choice:
+After complete diagnosis, resolve the concrete issue IDs, repair scope, constraints, and authorized next transition. The recommendation rules above apply in both modes; only `STEP` needs the runtime-equivalence rule in [confirmation.md](confirmation.md#numbered-choice-contract).
 
-- automatic mode: **修复所列问题（推荐）** — list the shared issue IDs and implement that set;
-- single-step mode: **修复所列问题并生成实施契约（推荐）** — list the shared issue IDs, freeze that set, then follow the selected route's task-contract owner.
+In `AUTO`, the coordinator must:
 
-When the shared set contains one issue, the compact labels **修复此问题（推荐）** and **修复此问题并生成实施契约（推荐）** are equivalent and preferred.
+1. derive the recommended set from the eligible, approved diagnosis results using the rules above;
+2. record `REPAIR_SELECTION: RECOMMENDED`, the exact `SELECTED_ISSUES`, and `REPAIR_SELECTION_INDEX: NOT_APPLICABLE`;
+3. freeze that set before any source write and continue directly to the route-specific task-contract or planning boundary.
 
-After merging, renumber all remaining actions consecutively. Re-evaluate equivalence whenever diagnosis, eligibility, approval, scope, constraints, or issue membership changes. Compare semantic sets rather than display order or labels; never merge choices whose selected issues, authority, constraints, or next transition differ.
+`AUTO` renders no repair menu and does not pause for routine set selection. An explicit issue scope narrows recommendation eligibility but does not create a menu. High-impact actions, authority or scope expansion, and materially ambiguous decisions still use their existing gates.
 
-In automatic full-flow mode, present these choices before creating the implementation contract:
+In `STEP`, resolve the user choice only after normalizing candidate actions by their actual runtime effect. If **推荐修复** and **全部修复** resolve to the same eligible issue IDs under the same scope and constraints, merge them into one choice:
 
-1. **推荐修复** — implement the explicitly listed recommended issue IDs and explain why this is the preferred risk/value balance.
-2. **全部修复** — implement every listed `REPAIRABLE` issue with `REPAIR_APPROVED: YES` that remains inside the current authorization boundary.
-3. **修改/补充/自定义** — select or exclude issue IDs, change order or approach, add constraints, or request more diagnosis without selecting a repair set yet.
-4. **暂停流程** — preserve the current run as resumable and do not emit the exit summary.
-5. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary.
+- **修复所列问题并生成实施契约（推荐）** — list the shared issue IDs, freeze that set, then follow the selected route's task-contract owner.
 
-Always keep every skill-supplied repair-choice number visible. Accept either the number or unambiguous text from the user. If customization requires selecting from several issue IDs, present every eligible issue in one following numbered choice set while retaining each stable `ISSUE-xxx` ID; do not truncate the list or split it merely because it has many entries. Accept numbers, issue IDs, or clear natural-language selections.
+When the shared set contains one issue, the compact label **修复此问题并生成实施契约（推荐）** is preferred. After merging, renumber all remaining actions consecutively and record the displayed positive index. Re-evaluate equivalence whenever diagnosis, eligibility, approval, scope, constraints, or issue membership changes. Compare semantic sets rather than display order or labels; never merge choices whose selected issues, authority, constraints, or next transition differ.
+
+Always keep every skill-supplied `STEP` repair-choice number visible. Accept either the number or unambiguous text from the user. If customization requires selecting from several issue IDs, present every eligible issue in one following numbered choice set while retaining each stable `ISSUE-xxx` ID; do not truncate the list or split it merely because it has many entries. Accept numbers, issue IDs, or clear natural-language selections.
 
 Do not interpret **全部修复** as permission to fix hypotheses, blocked issues, unrelated findings, high-impact actions, or issues outside the incident scope. If “all” contains conflicting repairs, structural expansion, or excessive blast radius, identify the conflict and request a narrower decision instead of guessing.
 
-This selection remains a mandatory user decision in automatic mode unless the activating request already says to use the recommended set, all eligible repairs, or an explicit custom issue list.
-
-In single-step mode, present exactly one combined repair-selection and implementation-contract menu for multiple repairable issues:
+In `STEP`, present exactly one combined repair-selection and implementation-contract menu for multiple repairable issues:
 
 1. **推荐修复并生成实施契约** — freeze the listed recommended issue IDs, then run the displayed task-contract work;
 2. **全部修复并生成实施契约** — freeze every listed eligible repairable issue, then run the displayed task-contract work;
@@ -96,31 +93,22 @@ Multiple selected issues require `COMPLEX`; its selection authorizes stage 3 onl
 
 This combined menu replaces the generic confirmation menu for that checkpoint. Do not display a second numbered list containing “确认 / 取消 / 修改 / 暂停”. If an upgrade lacks exact prior authorization, this menu selects scope only; follow the two-prompt composition rule in [confirmation.md](confirmation.md), and do not write source until the upgrade menu is resolved.
 
-When only one repairable issue exists in automatic mode, use this compact menu:
-
-1. **修复此问题（推荐）**
-2. **修改/补充/自定义** — change the repair approach or constraints, or request more diagnosis.
-3. **暂停流程** — preserve the current run as resumable and do not emit the exit summary.
-4. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary.
-
-The single-issue menu is the one-eligible-issue instance of the same runtime equivalence rule; do not show separate “recommended” and “all” choices that select the same issue.
-
-For one repairable issue in single-step mode, use:
+For one repairable issue in `STEP`, use:
 
 1. **修复此问题并生成实施契约（推荐）**
 2. **修改/补充/自定义** — change the repair approach or constraints, or request more diagnosis without authorizing a task contract or implementation.
 3. **暂停流程** — preserve the current run as resumable and do not emit the exit summary.
 4. **暂不修复并结束** — preserve the diagnosis and issue ledger, make no source changes, exit the incident, and emit the required summary.
 
-Either single-issue menu replaces the generic stage-action menu. Apply the same separate Agent-upgrade prompt rule when an upgrade lacks exact prior authorization.
+The `STEP` single-issue menu replaces the generic stage-action menu. Apply the same separate Agent-upgrade prompt rule when an upgrade lacks exact prior authorization.
 
-## Implement and verify the selected set
+## Implement and verify the frozen set
 
-Freeze the selected issue IDs before writing. A newly discovered issue returns to triage and requires a new selection; do not silently append it.
+Freeze the selected issue IDs before writing. A newly discovered issue never appends silently: `AUTO` re-triages and re-freezes only within unchanged scope and authority, while `STEP` returns to the repair-selection menu. Any scope or authority expansion stops at its existing gate; both modes retain approval and task-contract gates.
 
 Follow the selected route's task-contract, implementation, integration, and verification rules in [workflow.md](workflow.md) and [artifacts.md](artifacts.md#task-contract); only `COMPLEX` enters stage 3 planning. Map every selected issue to at least one task without merging unrelated issues merely to reduce dispatch count. Keep unrelated fixes separable when repository policy requires independent commits. If one issue or task fails verification, retain verified independent repairs, mark the failure clearly, and assess its dependants.
 
-Apply the bounded recurrence scan defined in [workflow.md](workflow.md#6-verification). For multiple issues, add credible candidates to the ledger and return them to diagnosis and repair selection; never silently append them to `SELECTED_ISSUES` or treat the scan as unrelated cleanup authority.
+Apply the bounded recurrence scan defined in [workflow.md](workflow.md#6-verification). Add credible candidates to the ledger and apply the mode-specific freeze rule above; never treat the scan as unrelated cleanup authority.
 
 Verify:
 
