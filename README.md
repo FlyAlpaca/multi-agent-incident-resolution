@@ -59,6 +59,7 @@ sh scripts/sync-global-skill.sh
 ```sh
 python3 "${HOME}/.codex/skills/.system/skill-creator/scripts/quick_validate.py" .
 python3 scripts/validate-test-prompts.py test-prompts.json
+python3 scripts/test-subagent-stop-eligibility.py
 sh -n scripts/*.sh
 git diff --check
 sh scripts/sync-global-skill.sh
