@@ -78,7 +78,7 @@ Before dispatching, emit a visible `commentary` update using `下一步执行：
 
 Give each member of an implementer pool a stable identifier such as `实施 Agent A` and reuse it in its canonical label, its `tasks.yaml` owner, its ledger record, and every later reference. State its task ID and exclusive file scope in the bounded task so the write boundary is visible before dispatch; a pool member without a visible file scope must not be dispatched.
 
-Record the complete dispatch fields required by [artifacts.md](artifacts.md). They include the task plan, canonical `state.md` path, optional `events.jsonl` path when justified, terminal handoff states, immediate terminal-turn exit obligation, and task-specific observation schedule; transport/channel limits are not work limits or timeout decisions.
+Record the complete dispatch fields required by [artifacts.md](artifacts.md). Transport or channel limits are not task-lifecycle decisions; apply those only through [the lifecycle authority](subagent-state.md).
 
 After dispatch, use the same canonical label verbatim in every user-facing reference to that actual subagent, including progress, substitution, failure, cancellation, terminal relay, planned next execution, and final summary. Label each member of a batch separately. A substitution gets a newly disclosed label; an upgrade still requires confirmation. Generic references to a stage or role catalog are exempt.
 
@@ -153,7 +153,7 @@ Within a confirmed phase, routine read-only tool calls and the stated in-scope c
 On pause or cancellation:
 
 - do not start new agents or commands;
-- on cancellation, stop active dispatched tasks through the runtime and immediately reclaim terminal workers; pause alone does not authorize a lifecycle stop;
+- on cancellation, route active tasks through [the lifecycle authority's cancellation path](subagent-state.md#coordinator-observation-and-intervention) and terminal workers through its terminal handling; pause alone does not authorize a lifecycle stop;
 - do not roll back, stash, clean, or discard work unless separately authorized;
 - preserve valid artifacts;
 - report the current run-control mode, last completed phase, working-tree state, and pending next action.

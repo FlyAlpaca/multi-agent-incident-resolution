@@ -33,7 +33,7 @@ Agent 类型、阶段角色与模型路由是三个正交维度；除入口 Agen
 
 ## 运行与回显
 
-派发后的状态、观察、干预、终态交接、子 Agent 回收和用户回显均以 [subagent-state.md](../references/subagent-state.md) 为唯一权威来源。
+派发后的状态、观察、干预、终态交接、子 Agent 回收及其生命周期回显内容以 [subagent-state.md](../references/subagent-state.md) 为唯一权威来源；Agent 标签及披露时机仍由下节的确认协议定义。
 
 ## 路由与升级
 

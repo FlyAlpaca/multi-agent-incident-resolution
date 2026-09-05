@@ -146,12 +146,38 @@ The coordinator is passive only while a dispatched task is active. The dispatch 
 
 Choose the initial wait and health-check cadence from expected milestones and dependencies. The cadence controls coordinator observation, not subagent writes or task deadlines. At a health check, use `last_meaningful_progress` from `state.md` as the sole clock for the no-progress threshold, and interpret it with available Agent status/messages, `result.md`, relevant diffs or artifacts, and process/test signals. Never use file mtime as meaningful progress.
 
+Immediately before every supported close or interrupt of an active task, reread its current `state.md` and run:
+
+```sh
+python3 <skill-root>/scripts/check-subagent-stop-eligibility.py \
+  <state-path> \
+  --ledger-path <dispatch-ledger-path> \
+  --ledger-record <record-id> \
+  --expected-task-id <task-id> \
+  --expected-agent-id <runtime-agent-id> \
+  --now <environment-derived-ISO-8601-time>
+```
+
+The gate validates the complete current state and binds it to the exact non-symlink task path, ledger record, runtime Agent, and dispatch clock. Retain its command, exit code, and JSON output in the dispatch ledger. Any nonzero exit or `stop_allowed: false` prohibits the lifecycle operation and reassignment. A prior state read, another task's state, wait counts, transport timeouts, file mtime, or coordinator time arithmetic is not a substitute.
+
+| Situation | Required invocation/result | Ledger authority |
+|---|---|---|
+| active and no-progress duration is at most 60 minutes | `DENY_BEFORE_THRESHOLD` | remain `OBSERVED_STATUS: NORMAL` |
+| active and duration is more than 60 minutes, before the final assessment | `REQUIRE_FINAL_ASSESSMENT` | remain `OBSERVED_STATUS: NORMAL` |
+| active, duration is more than 60 minutes, and the final assessment below finds no reasonable or useful path | add `--final-assessment-no-useful-path`; require `ALLOW_STALLED_ACTIVE_STOP` | `STOP_AUTHORITY: NO_PROGRESS` |
+| explicit user cancellation | `--exception user-cancellation --evidence-type user-message --evidence <reference>`; require `ALLOW_EXCEPTION_STOP` | `STOP_AUTHORITY: USER_CANCELLATION` |
+| concrete runtime-safety stop | `--exception runtime-safety --evidence-type runtime-signal --evidence <reference>`; require `ALLOW_EXCEPTION_STOP` | `STOP_AUTHORITY: RUNTIME_SAFETY` |
+| independently enforced authority boundary | `--exception authority-stop --evidence-type authority-boundary --evidence <reference>`; require `ALLOW_EXCEPTION_STOP` | `STOP_AUTHORITY: AUTHORITY_ENFORCEMENT` |
+| invalid binding, option, or evidence; or invalid state/clock on the ordinary no-progress path | any `DENY_*` result | stop prohibited |
+
+The coordinator must independently verify an exception's external evidence; the script validates only its type, presence, and dispatch binding. A correctly bound exception may proceed when the canonical task directory or state is not yet created, or when state is invalid, so emergency handling cannot deadlock; any path that exists must still pass the non-symlink binding checks, and the output records state-validation failure. A valid terminal state with sibling `result.md` takes precedence over an exception and returns `ALLOW_TERMINAL_RECLAIM`; runtime-delivered terminal evidence with missing or stale state follows [Terminal handling](#terminal-handling) directly and does not enter the active-task gate.
+
 Record the coordinator-owned `OBSERVED_STATUS` in the dispatch ledger:
 
 1. `NORMAL` by default.
 2. `FORCE_TERMINATION_ELIGIBLE` only after more than 60 minutes without meaningful progress. This permits a termination decision only after the final assessment below.
 
-Before that threshold, absence of a checkpoint or result, a coordinator wait timeout, low-value work, repeated identical failure, an ordinary scope concern, a missing handoff, or suspected lack of responsiveness does not permit a message, lifecycle stop, reassignment, or close for an active task. Record the observation and continue passive waiting. The only earlier stops of an active task are an explicit user cancellation or concrete evidence requiring an independently enforced runtime, safety, or authority stop. Execute that stop directly without first contacting the subagent. A terminal handoff is no longer an active task and must instead be reclaimed immediately under terminal handling below.
+Before that threshold, absence of a checkpoint or result, one or many coordinator wait timeouts, low-value work, repeated identical failure, an ordinary scope concern, a missing handoff, or suspected lack of responsiveness does not permit a message, lifecycle stop, reassignment, or close for an active task. Record the current observation and denied gate output, then continue passive waiting. Never manufacture a terminal handoff such as `HANDOFF_TIMEOUT_NO_OUTPUT` from an observation timeout. Execute an allowed exception stop directly without first contacting the subagent.
 
 Do not overwrite the subagent's lifecycle `STATUS` with an observed status. Do not treat a documented long-running test, build, analysis, data operation, network request, external wait, or reasonable `WAITING` condition as a stall solely because a threshold elapsed. Handle `BLOCKED` and `NEED_INPUT` as terminal handoffs, not stall evidence.
 
@@ -162,7 +188,7 @@ After the threshold, determine from current evidence whether:
 - the Agent is looping abnormally; and
 - a credible next direction or completion value remains.
 
-Continue passive observation whenever a justified path remains. A runtime-live worker whose task is still active may be force-terminated only as a last resort after the threshold and final assessment show that no reasonable operation or wait remains and no useful path remains. Use the runtime's supported lifecycle stop directly, including its interrupt operation when that is the available stop mechanism; do not send a preparatory or final message, and do not reassign until the runtime confirms termination. The threshold never authorizes a follow-up message or prompt.
+Continue passive observation whenever a justified path remains. Pass `--final-assessment-no-useful-path` only when the assessment supports it. After `ALLOW_STALLED_ACTIVE_STOP`, use the runtime's supported lifecycle stop directly, including its interrupt operation when that is the available stop mechanism; do not send a preparatory or final message, and do not reassign until the runtime confirms termination. The threshold never authorizes a follow-up message or prompt.
 
 Read `state.md` for routine status instead of asking duplicate questions such as whether the Agent is alive, current progress, or time remaining. Do not contact a worker whose task is active for a decision, conflicting evidence, abnormal state, scope change, reassignment, or any other coordination purpose.
 

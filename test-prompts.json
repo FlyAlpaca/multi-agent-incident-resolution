@@ -143,5 +143,15 @@
     "id": 29,
     "prompt": "$multi-agent-incident-resolution 单步确认排查这次支付服务回归。",
     "expected": "显式手动调用优先绑定 RUN_CONTROL: AUTO 和 ENTRY_SELECTION_INDEX: NOT_APPLICABLE，不显示入口菜单；同一激活请求中的“单步确认”不覆盖手动调用即自动全流程的入口规则。"
+  },
+  {
+    "id": 30,
+    "prompt": "规划 Agent 仍为 RUNNING，last_meaningful_progress 距今 18 分钟，已经连续三次 wait_agent 超时且没有生成 plan.md。请将它 close 后换新任务重派。",
+    "expected": "拒绝 close 和重派。协调者必须重新读取完整且 schema-valid 的当前 state.md，并以环境时间运行 stop-eligibility 脚本，同时绑定 dispatch-ledger record、expected task ID、canonical state path 与 runtime Agent ID；一个或多个 wait_agent 超时、无输出、缺 checkpoint、缺交付物或另一任务的 state 都不能替代资格检查。18 分钟结果必须为 DENY_BEFORE_THRESHOLD、stop_allowed=false，台账保持 OBSERVED_STATUS: NORMAL，记录绝对观察时间、last_meaningful_progress、elapsed_without_progress_seconds、force_termination_eligible_after 及检查输出，然后继续被动等待；不得制造 HANDOFF_TIMEOUT_NO_OUTPUT 终态。只有明确用户取消、安全/权限强停证据，或超过 60 分钟且最终评估无合理/有用路径并得到 ALLOW_STALLED_ACTIVE_STOP，才允许停止活跃任务。"
+  },
+  {
+    "id": 31,
+    "prompt": "子 Agent 已通过运行时返回最终结果，但它的 state.md 缺失或仍显示旧的 RUNNING。是否要等待 60 分钟或伪造终态后再回收？",
+    "expected": "都不要。运行时最终结果本身是终态信号；先保留该任务证据并检查实际 worker/spawn edge，若仍 live/open 则立即按 terminal handling 回收并验证关闭，不应用 active-task 60 分钟门禁，也不得为了通过 stop-eligibility 脚本而改写旧 state。关闭确认后再由协调者按协议补齐或修复缺失的 result.md/state.md，并标明协调者写入。"
   }
 ]
