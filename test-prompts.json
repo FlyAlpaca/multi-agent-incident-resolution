@@ -11,18 +11,18 @@
   },
   {
     "id": 3,
-    "prompt": "帮我独立复核一下当前分支相对 main 的改动，重点看有没有引入回归和风险。",
-    "expected": "进入复核范围（阶段 7，只读）；产出 review.md 与独立复核结论，不改变源码，区分 INDEPENDENT/LIMITED/UNAVAILABLE。"
+    "prompt": "$multi-agent-incident-resolution 帮我独立复核一下当前分支相对 main 的改动，重点看有没有引入回归和风险。",
+    "expected": "显式手动调用直接记录 INVOCATION_SOURCE: EXPLICIT、RUN_CONTROL: AUTO 和 ENTRY_SELECTION_INDEX: NOT_APPLICABLE，不显示入口菜单；进入复核范围（阶段 7，只读），产出 review.md 与独立复核结论，不改变源码，区分 INDEPENDENT/LIMITED/UNAVAILABLE。"
   },
   {
     "id": 4,
-    "prompt": "自动全流程重构订单、账务和网关三个模块，根因和推荐修复集合已经确认；其中订单幂等、账务补偿和网关重试分别有独立目标、验收、执行路径和风险边界，请并行实施并完成整合。",
-    "expected": "从 repair 的阶段 3 开始；规划 Agent 先确认三个独立修复闭环，检查低耦合、范围互斥、无共享核心设计决策、独立验证和失败隔离，记录 TASK_CONTRACT_MODE: PLANNER、PLANNING_MODE: DEDICATED、execution_mode: parallel、execution_reason、task_dependencies 及执行前自检，再使用不超过三个 Agent 的 POOLED 实施；所有实施 Agent 退出后仍执行集成，再验证和独立复核。"
+    "prompt": "$multi-agent-incident-resolution 重构订单、账务和网关三个模块，根因和推荐修复集已经确认；其中订单幂等、账务补偿和网关重试分别有独立目标、验收、执行路径和风险边界，请并行实施并完成整合。",
+    "expected": "显式手动调用直接进入 AUTO，不显示入口菜单；校验现有诊断后直接冻结推荐修复集，不显示修复选择菜单，记录 REPAIR_SELECTION: RECOMMENDED、精确 SELECTED_ISSUES 和 REPAIR_SELECTION_INDEX: NOT_APPLICABLE；随后从 repair 的阶段 3 开始，规划 Agent 确认三个独立修复闭环，检查低耦合、范围互斥、无共享核心设计决策、独立验证和失败隔离，记录 TASK_CONTRACT_MODE: PLANNER、PLANNING_MODE: DEDICATED、execution_mode: parallel、execution_reason、task_dependencies 及执行前自检，再使用不超过三个 Agent 的 POOLED 实施；所有实施 Agent 退出后仍执行集成，再验证和独立复核。"
   },
   {
     "id": 5,
-    "prompt": "单步确认修复这个已定位的单文件空指针问题，先做诊断，后续每一步等我确认。",
-    "expected": "NORMAL 使用同一个只读 Diagnoser 合并调查、诊断与简单修复契约；诊断结束后先等待修复选择，选择只授权该 Diagnoser 以 TASK_CONTRACT_MODE: DIAGNOSER_INLINE 完成内联契约和单任务 tasks.yaml，规划标记保持 SKIPPED，不创建独立 Planner、stage 3 或 plan.md，也不授权实施；恢复时使用新的有界派发记录和状态路径，随后仍单独确认 Implementer。"
+    "prompt": "测试输入：入口确认已完成，用户选择运行方式 2（单步确认）。在这个独立输入下，修复已定位的单文件空指针问题，先做诊断，后续每一步等我确认。",
+    "expected": "NORMAL 使用同一个只读 Diagnoser 合并调查、诊断与简单修复契约；诊断结束后先等待修复选择，选择只授权该 Diagnoser 以 TASK_CONTRACT_MODE: DIAGNOSER_INLINE 完成内联契约和单任务 tasks.yaml，规划标记保持 SKIPPED，不创建独立 Planner、阶段 3 或 plan.md，也不授权实施；进入后续阶段时使用新的有界派发记录和状态路径，随后仍单独确认 Implementer。"
   },
   {
     "id": 6,
@@ -32,7 +32,7 @@
   {
     "id": 7,
     "prompt": "规划已经完成，前面调查过程很长。现在开始并行实施，不要把所有历史都继续传下去。",
-    "expected": "主 Agent 先原子重建 active-context.md，保留最终 plan.md、tasks.yaml、冻结问题集、约束、当前工作树和任务状态的精确引用，排除探索过程与无关日志；校验 CONTEXT_STATUS: READY 后才按任务白名单派发实施 Agent。"
+    "expected": "主 Agent 先原子重建 active-context.md，保留最终 plan.md、tasks.yaml、冻结修复集、约束、当前工作树和任务状态的精确引用，排除探索过程与无关日志；校验 CONTEXT_STATUS: READY 后才按任务白名单派发实施 Agent。"
   },
   {
     "id": 8,
@@ -61,7 +61,7 @@
   },
   {
     "id": 13,
-    "prompt": "你是已派发的调查子 Agent。任务元数据给出 LEDGER_RECORD、AGENT_TYPE=EXECUTION、RUN_CONTROL=AUTO、ENTRY_SELECTION_INDEX=1 和 TASK_ID，请调查指定日志并返回证据。",
+    "prompt": "你是已派发的调查子 Agent。任务元数据给出 LEDGER_RECORD、AGENT_TYPE=EXECUTION、INVOCATION_SOURCE=EXPLICIT、RUN_CONTROL=AUTO、ENTRY_SELECTION_INDEX=NOT_APPLICABLE 和 TASK_ID，请调查指定日志并返回证据。",
     "expected": "将自身识别为 EXECUTION Agent，从派发台账读取并校验元数据与 TASK_PAYLOAD 指向同一任务；校验有效后记录 HANDOFF_PROTOCOL_STATUS: VALID，跳过入口菜单并执行有界调查。父 Agent 在派发前若发现字段缺失、冲突或过期，则阻止派发，不依赖会话记忆补值，也不增加表达同一事实的重复布尔字段。"
   },
   {
@@ -71,17 +71,17 @@
   },
   {
     "id": 15,
-    "prompt": "修复选择时不要限制最多三个选项，也不要让我先点“更多操作”再看暂停或自定义；如果修改、补充、自定义意义相同，只保留一个入口。",
-    "expected": "通过一个编号文本菜单直接展示当前决策的全部可用动作，不使用固定选项上限或二级菜单；将修改、补充、自定义合并为一个选项，同时保留语义不同的确认、暂停和结束动作。"
+    "prompt": "测试输入：RUN_CONTROL=STEP，本用例独立运行，不依赖其他对话。修复选择时不要限制最多三个选项，也不要让我先点“更多操作”再看暂停或自定义；如果修改、补充、自定义意义相同，只保留一个入口。",
+    "expected": "明确 RUN_CONTROL: STEP，通过一个编号文本菜单直接展示当前决策的全部可用动作，不使用固定选项上限或二级菜单；将修改、补充、自定义合并为一个选项，同时保留语义不同的确认、暂停和结束动作。"
   },
   {
     "id": 16,
-    "prompt": "当前只有 ISSUE-001 可修复，而且推荐修复集合和全部修复集合都是 ISSUE-001。请给出修复选择。",
-    "expected": "展示菜单前按实际问题集合、范围、约束和下一阶段语义做运行时归一化；推荐修复与全部修复效果完全相同，因此合并为一个“修复此问题（推荐）”选项并明确 ISSUE-001，其余不同语义的修改、暂停和结束选项保留并连续编号。"
+    "prompt": "测试输入：RUN_CONTROL=STEP，本用例独立运行；当前只有 ISSUE-001 可修复，推荐修复集和全部可修复集都只有 ISSUE-001。请给出修复选择。",
+    "expected": "明确 RUN_CONTROL: STEP；展示菜单前按实际修复集、范围、约束和下一阶段语义做运行时归一化；推荐修复与全部修复效果完全相同，因此合并为一个“修复此问题并生成实施契约（推荐）”选项并明确 ISSUE-001，其余不同语义的修改、暂停和结束选项保留并连续编号，记录显示的正数索引。"
   },
   {
     "id": 17,
-    "prompt": "自动全流程按下面的变更信封修复拼写：change_scope={affected_files: 1, affected_paths: [src/format.ts], estimated_changes: 2}; risk={api_change: false, database_change: false, schema_change: false, architecture_change: false}; dependency={cross_module: false, external_dependency: false}。",
+    "prompt": "$multi-agent-incident-resolution 按下面的变更信封修复拼写：change_scope={affected_files: 1, affected_paths: [src/format.ts], estimated_changes: 2}; risk={api_change: false, database_change: false, schema_change: false, architecture_change: false}; dependency={cross_module: false, external_dependency: false}。",
     "expected": "变更分类器作为非 Agent 角色命中 TINY；协调者以 TASK_CONTRACT_MODE: COORDINATOR 直接物化一个 tasks.yaml 单任务，规划标记为 SKIPPED，派发一个实施 Agent，随后由协调者做快速只读验证；不派调查、诊断、规划、集成、验证或独立复核 Agent。"
   },
   {
@@ -116,8 +116,8 @@
   },
   {
     "id": 24,
-    "prompt": "自动全流程修复一个 NORMAL 级别的单模块问题。日志、复现和代码路径都需要先分析，但修复方向预计是一个最小闭环。",
-    "expected": "只派发一个只读 Diagnoser 合并基础调查、日志与代码路径分析、根因判断和简单修复契约，统一写入 diagnosis.md，并在选择冻结后以 TASK_CONTRACT_MODE: DIAGNOSER_INLINE 生成一个 tasks.yaml；PLANNING_MODE 和 PLAN_STATUS 均为 SKIPPED，不派 Investigator 或 Planner、不创建 evidence.md 或 plan.md。随后派一个独立 Implementer，最后由协调者执行基础验证并明确跳过独立复核。"
+    "prompt": "$multi-agent-incident-resolution 修复一个 NORMAL 级别的单模块问题。日志、复现和代码路径都需要先分析，但修复方向预计是一个最小闭环。",
+    "expected": "只派发一个只读 Diagnoser 合并基础调查、日志与代码路径分析、根因判断和简单修复契约，统一写入 diagnosis.md；AUTO 在诊断完成后直接冻结推荐集，记录 REPAIR_SELECTION: RECOMMENDED、精确 SELECTED_ISSUES 和 REPAIR_SELECTION_INDEX: NOT_APPLICABLE，不显示修复选择菜单，再以 TASK_CONTRACT_MODE: DIAGNOSER_INLINE 生成一个 tasks.yaml；PLANNING_MODE 和 PLAN_STATUS 均为 SKIPPED，不派 Investigator 或 Planner、不创建 evidence.md 或 plan.md。随后派一个独立 Implementer，最后由协调者执行基础验证并明确跳过独立复核。"
   },
   {
     "id": 25,
@@ -128,5 +128,20 @@
     "id": 26,
     "prompt": "NORMAL 实施后，协调者的原始复现失败，但现象可能来自测试环境，也可能是修复缺陷；当前范围没有触发 COMPLEX 条件。",
     "expected": "记录协调者检查失败和归因不清，以 VERIFIER_ESCALATION_REASON: CHECK_FAILED 派发一个有界、只读的独立 Verifier 做归因，并将聚合字段设为 VERIFICATION_MODE: FULL、VERIFICATION_OWNER: VERIFIER；Verifier 不修改源码。若确认是界内修复缺陷，冻结失败快照并开启新轮次，重新派发 Diagnoser 刷新内联契约，不能直接回 Implementer。"
+  },
+  {
+    "id": 27,
+    "prompt": "$multi-agent-incident-resolution 诊断出三个已批准且在范围内的可修复问题：推荐集为 ISSUE-001，全部可修复集为 ISSUE-001、ISSUE-002、ISSUE-003。请继续执行修复。",
+    "expected": "AUTO 在诊断完成后只冻结推荐集 ISSUE-001，记录 REPAIR_SELECTION: RECOMMENDED、SELECTED_ISSUES: ISSUE-001 和 REPAIR_SELECTION_INDEX: NOT_APPLICABLE；不显示推荐/全部/自定义/修改/暂停/结束修复菜单，不把 ISSUE-002 或 ISSUE-003 静默加入范围，同时保留安全、高影响和后续任务契约门禁。"
+  },
+  {
+    "id": 28,
+    "prompt": "自动全流程排查并修复这次支付服务回归。",
+    "expected": "如果该请求是隐式触发本 Skill，即使文本中写了“自动全流程”，仍识别为 INVOCATION_SOURCE: IMPLICIT，先显示自动全流程/单步确认/Codex 原生处理三选一并等待回复；用户回答前不检查仓库、不分类、不派 Agent、不创建工件、不修改源码，回答后才在首个工件中记录调用来源和菜单选择。"
+  },
+  {
+    "id": 29,
+    "prompt": "$multi-agent-incident-resolution 单步确认排查这次支付服务回归。",
+    "expected": "显式手动调用优先绑定 RUN_CONTROL: AUTO 和 ENTRY_SELECTION_INDEX: NOT_APPLICABLE，不显示入口菜单；同一激活请求中的“单步确认”不覆盖手动调用即自动全流程的入口规则。"
   }
 ]

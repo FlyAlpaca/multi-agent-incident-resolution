@@ -1,6 +1,6 @@
 # Multi-Agent Incident Resolution
 
-面向 Codex 的多 Agent 事件处理 Skill：入口确认后，以固定规则选择最小安全路线；`NORMAL` 合并调查与诊断并降低交接成本，`COMPLEX` 保留完整多 Agent 闭环。
+面向 Codex 的多 Agent 事件处理 Skill：显式调用直接进入自动全流程，隐式触发先完成入口确认，再按固定规则选择最小安全路线。`NORMAL` 合并调查与诊断，`COMPLEX` 保留完整多 Agent 闭环。
 
 ## 适用范围
 
@@ -22,7 +22,7 @@
 - 分类输入、阈值、路线与升级：[变更分类器](references/change-classifier.md)
 - 阶段、早退、规划、实施、集成、验证与退出：[工作流协议](references/workflow.md)
 - 用户菜单与 Agent 路由披露：[确认协议](references/confirmation.md)
-- 多问题分诊与修复集合：[多问题协议](references/multi-issue.md)
+- 多问题分诊与修复集：[多问题协议](references/multi-issue.md)
 - 运行工件、`tasks.yaml` 与终态字段：[工件协议](references/artifacts.md)
 - 子 Agent 状态、观察、终止与回收：[状态协议](references/subagent-state.md)
 - 角色职责与上下文边界：[Agent 角色规范](docs/agent-roles.md)
@@ -58,13 +58,15 @@ sh scripts/sync-global-skill.sh
 
 ```sh
 python3 "${HOME}/.codex/skills/.system/skill-creator/scripts/quick_validate.py" .
-jq empty test-prompts.json
+python3 scripts/validate-test-prompts.py test-prompts.json
 sh -n scripts/*.sh
 git diff --check
 sh scripts/sync-global-skill.sh
 ```
 
 涉及流程行为、路由、工件字段或确认语义时，同步更新其权威协议；其他文件只保留必要入口和链接，避免复制规则。
+
+测试提示采用独立输入：菜单选择、`RUN_CONTROL` 和其他阶段状态直接写在同一条 `prompt` 中，不依赖上一轮对话。`scripts/validate-test-prompts.py` 只使用 Python 标准库检查提示集结构和唯一编号。
 
 ## 许可证
 

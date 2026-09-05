@@ -21,7 +21,14 @@ Accept a number, exact label, structured result, or unambiguous natural-language
 
 ## Entry confirmation
 
-This section is the only source of the entry menu for an incident and applies only to the entry Agent. A dispatched execution Agent follows [the run-control handoff](subagent-state.md#run-control-handoff) and never renders this menu. Render it exactly once for each unresolved entry decision. Do not precede or follow it with another run-control list, a paraphrased copy, or a second set of interactive options.
+This section is the only source of entry run control for an incident and applies only to the entry Agent. A dispatched execution Agent follows [the run-control handoff](subagent-state.md#run-control-handoff) and never evaluates invocation source or renders this menu.
+
+Determine invocation source before any workflow action:
+
+- `EXPLICIT`: the user manually invoked this Skill through the exact `$multi-agent-incident-resolution` skill invocation (or equivalent client-provided explicit-invocation metadata). Set `RUN_CONTROL: AUTO` and `ENTRY_SELECTION_INDEX: NOT_APPLICABLE`, then start automatic full-flow mode without rendering the entry menu. Merely naming, discussing, or linking the Skill in prose is not an explicit manual invocation.
+- `IMPLICIT`: the runtime selected this Skill without that explicit manual invocation. The entry decision is unresolved and the menu below is mandatory. Do not treat “自动全流程”, “单步确认”, “Codex 原生处理”, or an equivalent phrase embedded in the activating request as the menu response; render the menu and wait for a reply.
+
+For an implicit activation, render the menu exactly once for each unresolved entry decision. Do not precede or follow it with another run-control list, a paraphrased copy, or a second set of interactive options.
 
 Before taking workflow actions, present these three choices in simplified Chinese:
 
@@ -31,7 +38,7 @@ Before taking workflow actions, present these three choices in simplified Chines
 
 The visible option label is only **Codex 原生处理**. Its operational semantics are both: disable this skill workflow, then continue the same request with the default Codex workflow. Do not expose the internal English instruction as a label, alias, parenthetical, or additional choice.
 
-If the user already says “自动全流程”, “单步确认”, “Codex 原生处理”, or an unambiguous equivalent in the activating request, adopt it without asking again. An explicit `$multi-agent-incident-resolution` invocation selects the skill but does not by itself select run control.
+After an implicitly activated menu has been rendered, accept “自动全流程”, “单步确认”, “Codex 原生处理”, or an unambiguous equivalent as the answer. A manually invoked `$multi-agent-incident-resolution` always selects automatic full-flow mode; do not render a second menu even when other run-control wording appears in the same activating request.
 
 Do not persist the selection globally. Keep it only for the current incident. If the incident materially changes, ask again.
 
@@ -51,7 +58,7 @@ Proceed through the selected workflow scope without routine stage prompts. End e
 
 Automatic mode is not blanket authorization for deployment, destructive operations, history rewriting, credential changes, external writes, purchases, or production mutation.
 
-When diagnosis finds repair choices, automatic mode pauses and presents the numbered repair menu defined in [multi-issue.md](multi-issue.md) unless the user preselected a repair set in the activating request. Repair selection is a product/scope decision, not a routine stage prompt.
+After complete diagnosis, `AUTO` freezes the recommended repair set under [the multi-issue contract](multi-issue.md#freeze-the-repair-set-by-run-control) and continues without a repair menu. `STEP` uses the user-gated selection defined by that same contract. Both modes retain existing scope, approval, safety, and high-impact gates; record the result with [the artifact fields](artifacts.md#terminal-marker-vocabulary).
 
 Choosing `TASK_CONTRACT_MODE`, `POOLED` implementation, dispatching an approved Implementer wave, or running its required integration phase are routing decisions inside the confirmed scope. They still require routing disclosure and any Agent-upgrade confirmation, but no extra stage confirmation in automatic mode while scope and authority remain unchanged. `TINY` quick verification and `NORMAL` basic verification are coordinator-owned, not Agent routes; an escalated `NORMAL` Verifier is.
 
@@ -113,16 +120,16 @@ Immediately before the single numbered choice set, describe the next executor in
 
 Do not show the confirmation choices or start the phase until every planned subagent has a canonical label, exact model, reasoning effort, and bounded task. If execution changes between the current Agent and a subagent, or any displayed subagent, model, effort, or task changes before execution, create or revise the affected canonical label, present a revised checkpoint, and wait again. A model above the role default still requires exact authorization under the Agent-upgrade contract; routing disclosure alone never authorizes it.
 
-When repair selection is pending, include the issue table and use the single-step combined repair menu from [multi-issue.md](multi-issue.md). For `NORMAL`, that menu confirms the selected issue plus completion of the same Diagnoser's bounded inline repair contract; it does not open planning. For `COMPLEX`, it confirms selection plus entry into stage 3. Single-step mode still requires a later implementation checkpoint. `TINY` has one already-authorized bounded change and does not open this menu. Before implementation, present `tasks.yaml` with task ID, owner label, file scope, dependency wave, acceptance conditions, integration fields, execution order, affected contracts or data, rollback, and verification checks. Expand details only for higher-blast-radius `COMPLEX` repairs.
+When repair selection is pending in `STEP`, include the issue table and use the combined repair menu from [multi-issue.md](multi-issue.md). For `NORMAL`, that menu authorizes the same Diagnoser to complete its bounded inline repair contract; for `COMPLEX`, it authorizes entry into stage 3. Neither authorizes implementation, which retains its own checkpoint. `AUTO` has no repair-selection menu, and `TINY` has one already-authorized bounded change. Before implementation, present `tasks.yaml` with task ID, owner label, file scope, dependency wave, acceptance conditions, integration fields, execution order, affected contracts or data, rollback, and verification checks. Expand details only for higher-blast-radius `COMPLEX` repairs.
 
 Planning is stage 3 only for `COMPLEX`, whose implementation checkpoint requires `plan.md` and `tasks.yaml`. `NORMAL` proceeds from completed combined diagnosis plus inline `tasks.yaml`; `TINY` proceeds from the coordinator-materialized task. Both lighter routes record planning as skipped. Gate task-contract creation by owner:
 
-- `TASK_CONTRACT_MODE: DIAGNOSER_INLINE` — `NORMAL` reuses the Diagnoser and its canonical label without bypassing repair selection or a single-step gate. The selection authorizes only contract completion, not implementation. A gate-separated resume gets its own bounded dispatch record and task-state path without creating a Planner identity or stage-3 checkpoint.
+- `TASK_CONTRACT_MODE: DIAGNOSER_INLINE` — `NORMAL` reuses the Diagnoser and its canonical label. In `AUTO`, the direct recommendation freeze precedes the inline contract; in `STEP`, the user selection gate must be resolved first. The frozen set authorizes only contract completion, not implementation. A gate-separated resume gets its own bounded dispatch record and task-state path without creating a Planner identity or stage-3 checkpoint.
 - `TASK_CONTRACT_MODE: PLANNER` — `COMPLEX` planning gets its own checkpoint and canonical Planner label before the implementation checkpoint.
 
 Do not dispatch a `NORMAL` Implementer before `diagnosis.md` contains the completed inline contract and `tasks.yaml` exists. Do not dispatch a `COMPLEX` Implementer before `plan.md` and `tasks.yaml` exist. Do not duplicate contract/planning and implementation checkpoints or let task decomposition silently change the frozen `SELECTED_ISSUES`. `TINY` uses its documented materialized-task exception. When `NORMAL` can no longer satisfy the inline contract, reclassify it to `COMPLEX`, disclose the new Planner label, and present the planning checkpoint before dispatching it.
 
-If the implementation proposes an upgrade that lacks exact prior authorization while repair selection is pending, resolve the repair set first using its numbered menu as a scope decision only. Then show a revised implementation checkpoint with the Agent-upgrade menu; options `1` or `2` authorize the displayed implementation transition. Do not write source between those prompts. If the repair set was already selected and no unapproved upgrade is proposed, use the generic stage-action menu below.
+If the implementation proposes an upgrade that lacks exact prior authorization while a `STEP` repair selection is pending, resolve the repair set first using its numbered menu as a scope decision only. In `AUTO`, the recommended set is already frozen; an upgrade or scope change still uses the applicable safety/upgrade gate. Then show a revised implementation checkpoint with the Agent-upgrade menu; options `1` or `2` authorize the displayed implementation transition. Do not write source between those prompts. If the repair set was already frozen and no unapproved upgrade is proposed, use the generic stage-action menu below.
 
 For a checkpoint not governed by the combined repair menu or Agent-upgrade menu, offer these actions as its only numbered list and wait:
 
